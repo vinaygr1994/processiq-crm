@@ -112,6 +112,7 @@ export interface Settings {
   rr_index: number;
   timezone: string;
   starters_installed: boolean;
+  intake_key: string;
   created_at: string;
 }
 

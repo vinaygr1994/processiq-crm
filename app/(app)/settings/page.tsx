@@ -7,11 +7,26 @@ import { isDemo } from "@/lib/config";
 import { toCsv } from "@/lib/csv";
 import { useStatus } from "@/lib/status";
 
+function Copy({ label, hint, value }: { label: string; hint: string; value: string }) {
+  const { toast } = useCrm();
+  return (
+    <div>
+      <div className="text-sm font-semibold text-ink">{label}</div>
+      <p className="mb-1.5 text-[13px] text-muted">{hint}</p>
+      <div className="flex gap-2"><input readOnly className="field !py-2 font-mono text-[13px]" value={value} onFocus={(e) => e.target.select()} aria-label={label} />
+        <Button variant="soft" size="sm" onClick={() => { navigator.clipboard?.writeText(value).then(() => toast("Copied"), () => toast("Select the text and copy it", "error")); }}>Copy</Button></div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { settings, saveSettings, data, userEmail, signOut, resetDemoData, toast } = useCrm();
   const status = useStatus();
   const [f, setF] = useState({ business_name: "", sender_name: "", reply_to: "", address: "", signature: "", reps: "", owner_email: "", review_link: "", booking_link: "" });
   const [reset, setReset] = useState(false);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const key = settings?.intake_key ?? "…";
   const [dirty, setDirty] = useState(false);
   useEffect(() => {
     if (settings) setF({ business_name: settings.business_name, sender_name: settings.sender_name, reply_to: settings.reply_to, address: settings.address, signature: settings.signature, reps: (settings.reps ?? []).join(", "), owner_email: settings.owner_email ?? "", review_link: settings.review_link ?? "", booking_link: settings.booking_link ?? "" });
@@ -71,6 +86,25 @@ export default function SettingsPage() {
           </div>
           <div className="flex justify-end"><Button type="submit" disabled={!dirty}>Save changes</Button></div>
         </form>
+      </Card>
+
+      <Card>
+        <h2 className="mb-1 text-lg font-semibold">Lead sources</h2>
+        <p className="mb-4 text-muted">Send leads from your ads and website straight into the pipeline. Workflows reply and follow up the moment they arrive.</p>
+        {isDemo && <p className="mb-3 rounded-xl bg-sun-t px-3 py-2 text-sm text-[#9a5a00]">Demo mode: these links are examples. They work once your CRM is live.</p>}
+        <div className="space-y-4">
+          <Copy label="Lead form link" hint="A ready-made “get a quote” page. Put it on your website, in ads, Google Business Profile, Instagram bio or a QR code." value={`${origin}/lead/${key}`} />
+          <Copy label="Webhook URL" hint="For Google Ads lead forms, Zapier, Make and any tool that can send a POST request." value={`${origin}/api/leads?key=${key}`} />
+          <div className="rounded-2xl bg-cloud p-4 text-sm text-body">
+            <div className="mb-2 font-semibold text-ink">How to connect each source</div>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li><b>Google Ads:</b> in your campaign, open Lead form assets, then Lead delivery, choose Webhook, paste the Webhook URL and enter the key <code className="rounded bg-white px-1">{key}</code> in the Key field.</li>
+              <li><b>Facebook / Instagram:</b> in Zapier or Make, use the Facebook Lead Ads trigger, then add a Webhooks POST action to the Webhook URL (add <code className="rounded bg-white px-1">&amp;source=Facebook</code> to the end).</li>
+              <li><b>Angi, HomeAdvisor, Yelp, Houzz:</b> use the Zapier or Make connector for that site if it has one, with a Webhooks POST to the URL (add <code className="rounded bg-white px-1">&amp;source=Angi</code>). If it only sends emails, use Zapier&apos;s Email Parser, then POST name, phone, email and project.</li>
+              <li><b>Your own website:</b> link to the lead form, or make your existing form POST to the Webhook URL.</li>
+            </ul>
+          </div>
+        </div>
       </Card>
 
       <Card>

@@ -200,3 +200,7 @@ begin
     execute format('create policy "owner_all" on public.%I for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid())', t);
   end loop;
 end $$;
+
+-- ===== Lead intake (migration 003) =====
+alter table public.settings add column if not exists intake_key text not null default encode(gen_random_bytes(16), 'hex');
+create unique index if not exists settings_intake_key_idx on public.settings(intake_key);

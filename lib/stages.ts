@@ -19,5 +19,5 @@ export const isActive = (s: Stage) => s !== "lost" && s !== "completed";
 
 export const PROJECTS = ["Kitchen remodel", "Bathroom remodel", "Basement finishing", "Home addition", "Whole-home renovation", "Roofing / exterior", "Flooring", "Other"];
 export const BUDGETS = ["Under $10k", "$10–30k", "$30–60k", "$60–100k", "$100k+", "Not sure yet"];
-export const SOURCES = ["Google Ads", "Facebook / Instagram", "Website form", "Referral", "Yelp / Houzz", "Repeat customer", "Walk-in / other"];
+export const SOURCES = ["Google Ads", "Facebook / Instagram", "Website form", "Referral", "Angi / HomeAdvisor", "Yelp / Houzz", "Repeat customer", "Walk-in / other"];
 export const LOST_REASONS = ["Went with another contractor", "Price too high", "Project postponed", "No response", "Out of our service area", "Other"];
