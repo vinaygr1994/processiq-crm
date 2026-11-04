@@ -15,6 +15,7 @@ const NAV = [
   { href: "/", label: "Today", icon: "today" },
   { href: "/contacts", label: "Contacts", icon: "users" },
   { href: "/pipeline", label: "Jobs", icon: "pipeline" },
+  { href: "/calendar", label: "Calendar", icon: "calendar" },
   { href: "/automations", label: "Workflows", icon: "bolt" },
   { href: "/emails", label: "Email", icon: "mail" },
   { href: "/settings", label: "Settings", icon: "settings" },
@@ -89,7 +90,7 @@ export function Shell({ children }: { children: ReactNode }) {
         {ready ? children : <div className="grid place-items-center py-32 text-teal"><Spinner className="size-8" /></div>}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
         {NAV.map((n) => (
           <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
             className={`flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-semibold ${active(n.href) ? "text-teal-d" : "text-muted"}`}>

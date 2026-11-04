@@ -54,11 +54,11 @@ export function NewLeadModal({ onClose, onCreated }: { onClose: () => void; onCr
 
 const localInput = (ms: number) => { const d = new Date(ms); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
 
-export function BookVisitModal({ deal, onClose }: { deal: Deal; onClose: () => void }) {
+export function BookVisitModal({ deal, onClose, day }: { deal: Deal; onClose: () => void; day?: Date }) {
   const { settings, toast } = useCrm();
   const flow = useFlow();
   const reps = settings?.reps ?? [];
-  const tomorrow10 = (() => { const d = new Date(nowMs() + 86400000); d.setHours(10, 0, 0, 0); return d.getTime(); })();
+  const tomorrow10 = (() => { const d = day ? new Date(day) : new Date(nowMs() + 86400000); d.setHours(10, 0, 0, 0); return d.getTime(); })();
   const [when, setWhen] = useState(localInput(tomorrow10));
   const [rep, setRep] = useState(deal.rep || reps[0] || "");
   const [err, setErr] = useState("");
