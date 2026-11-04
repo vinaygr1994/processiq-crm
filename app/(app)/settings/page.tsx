@@ -6,6 +6,7 @@ import { useCrm } from "@/lib/store";
 import { isDemo } from "@/lib/config";
 import { toCsv } from "@/lib/csv";
 import { useStatus } from "@/lib/status";
+import { CustomizeCard } from "@/components/CustomizeCard";
 
 function Copy({ label, hint, value }: { label: string; hint: string; value: string }) {
   const { toast } = useCrm();
@@ -87,6 +88,8 @@ export default function SettingsPage() {
           <div className="flex justify-end"><Button type="submit" disabled={!dirty}>Save changes</Button></div>
         </form>
       </Card>
+
+      <CustomizeCard />
 
       <Card>
         <h2 className="mb-1 text-lg font-semibold">Lead sources</h2>

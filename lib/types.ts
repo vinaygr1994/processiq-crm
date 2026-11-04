@@ -10,6 +10,7 @@ export interface Contact {
   tags: string[];
   source: string;
   unsubscribed: boolean;
+  custom?: Record<string, string>;
   created_at: string;
 }
 export interface Deal {
@@ -26,6 +27,7 @@ export interface Deal {
   lost_reason: string;
   stage_at: string; // when it entered the current stage
   quote_sent_at: string | null;
+  custom?: Record<string, string>;
   created_at: string;
 }
 export type VisitStatus = "scheduled" | "done" | "no_show" | "cancelled";
@@ -113,8 +115,12 @@ export interface Settings {
   timezone: string;
   starters_installed: boolean;
   intake_key: string;
+  stage_labels: Record<string, string>;
+  custom_fields: CustomField[];
   created_at: string;
 }
+
+export interface CustomField { id: string; label: string; on: "deal" | "contact"; type: "text" | "number" | "date" | "select"; options?: string[] }
 
 export interface Workflow {
   id: string;

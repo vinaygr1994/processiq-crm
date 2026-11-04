@@ -8,13 +8,14 @@ import { Avatar, Button, PageHeader } from "@/components/ui";
 import { useCrm } from "@/lib/store";
 import { useFlow } from "@/lib/flow";
 import { money } from "@/lib/format";
-import { STAGES } from "@/lib/stages";
+import { useStages } from "@/lib/useStages";
 import type { Deal, Stage, Visit } from "@/lib/types";
 
 type Pending = { kind: "visit" | "result" | "quote" | "lost"; deal: Deal; visit?: Visit };
 
 function Board() {
   const { data } = useCrm();
+  const { stages } = useStages();
   const flow = useFlow();
   const router = useRouter();
   const sp = useSearchParams();
@@ -47,7 +48,7 @@ function Board() {
       <PageHeader title="Jobs" sub={`${open.length} in progress · ${money(inFlight)} quoted or in play · drag a card to move it along`} action={<Button icon="plus" onClick={() => setAdding(true)}>New lead</Button>} />
       <div className="-mx-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
         <div className="grid min-w-max grid-flow-col auto-cols-[270px] gap-3.5">
-          {STAGES.map((s) => {
+          {stages.map((s) => {
             const deals = data.deals.filter((d) => d.stage === s.id).sort((a, b) => b.stage_at.localeCompare(a.stage_at));
             const sum = deals.reduce((a, d) => a + d.value, 0);
             return (

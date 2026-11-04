@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { Badge, Button, Card, ConfirmModal, Empty, PageHeader } from "@/components/ui";
 import { triggerText } from "@/components/WorkflowEditor";
 import { useCrm } from "@/lib/store";
+import { useStages } from "@/lib/useStages";
 import { isDemo } from "@/lib/config";
 import { resetClock, skipAhead } from "@/lib/clock";
 import { timeAgo } from "@/lib/format";
@@ -20,6 +21,7 @@ const reId = (steps: Workflow["steps"]): Workflow["steps"] => steps.map((s) => (
 export default function AutomationsPage() {
   const { data, update, add, removeMany, remove, toast } = useCrm();
   const router = useRouter();
+  const { name: stageName } = useStages();
   const [del, setDel] = useState<Workflow | null>(null);
   const [reset, setReset] = useState(false);
   const [picker, setPicker] = useState(false);
@@ -71,7 +73,7 @@ export default function AutomationsPage() {
             return (
               <Card key={w.id} className={w.active ? "" : "bg-cloud/60"}>
                 <div className="flex items-start justify-between gap-3">
-                  <Badge tone={w.active ? "teal" : "gray"}>{triggerText(w.trigger)}</Badge>
+                  <Badge tone={w.active ? "teal" : "gray"}>{triggerText(w.trigger, stageName)}</Badge>
                   <button role="switch" aria-checked={w.active} aria-label={`${w.name} ${w.active ? "on" : "off"}`} onClick={() => toggle(w)} className={`relative h-6 w-11 shrink-0 rounded-full transition ${w.active ? "bg-teal" : "bg-[#cfd6e6]"}`}><span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${w.active ? "left-[22px]" : "left-0.5"}`} /></button>
                 </div>
                 <h3 className="mt-3 font-display text-[1.05rem] font-semibold text-ink"><Link href={`/automations/${w.id}`} className="hover:text-teal-d hover:underline">{w.name}</Link></h3>

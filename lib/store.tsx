@@ -123,7 +123,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const saveSettings = useCallback(async (patch: Partial<Settings>) => {
     if (settings) await update("settings", settings.id, patch);
     else
-      await add("settings", { business_name: "", sender_name: "", reply_to: "", address: "", signature: "", reps: [], owner_email: "", review_link: "", booking_link: "", automations_off: [], rr_index: 0, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", starters_installed: false, intake_key: Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join(""), ...patch });
+      await add("settings", { business_name: "", sender_name: "", reply_to: "", address: "", signature: "", reps: [], owner_email: "", review_link: "", booking_link: "", automations_off: [], rr_index: 0, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", starters_installed: false, stage_labels: {}, custom_fields: [], intake_key: Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join(""), ...patch });
   }, [settings, update, add]);
 
   const signOut = useCallback(async () => {

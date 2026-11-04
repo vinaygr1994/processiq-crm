@@ -10,7 +10,8 @@ import { useCrm } from "@/lib/store";
 import { useFlow } from "@/lib/flow";
 import { aiSummarize } from "@/lib/ai";
 import { dueLabel, isEmail, money, timeAgo, todayStr } from "@/lib/format";
-import { stageLabel } from "@/lib/stages";
+import { useStages } from "@/lib/useStages";
+import { CustomFields } from "@/components/CustomFields";
 import type { ActivityKind, Contact } from "@/lib/types";
 
 const KINDS: { id: ActivityKind; label: string; icon: string }[] = [
@@ -23,6 +24,7 @@ export default function ContactPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data, update, remove, removeMany, toast } = useCrm();
+  const { name: stageName } = useStages();
   const flow = useFlow();
   const contact = data.contacts.find((c) => c.id === id);
   const [modal, setModal] = useState<"email" | "task" | "delete" | null>(null);
@@ -71,7 +73,7 @@ export default function ContactPage() {
       const r = await aiSummarize({
         contact: { name: contact!.name, company: contact!.company, tags: contact!.tags },
         activities: data.activities.filter((a) => a.contact_id === id).slice(0, 12).map((a) => ({ kind: a.kind, body: a.body, when: timeAgo(a.created_at) })),
-        deals: deals.map((d) => ({ title: d.project || d.title, value: d.value, stage: stageLabel(d.stage) })),
+        deals: deals.map((d) => ({ title: d.project || d.title, value: d.value, stage: stageName(d.stage) })),
         tasks: tasks.slice(0, 8).map((t) => ({ title: t.title, due: t.due_date, done: t.done })),
       });
       setAi({ ...r.result, live: r.live });
@@ -118,6 +120,7 @@ export default function ContactPage() {
                     onKeyDown={(e) => (e.key === "Enter" || e.key === ",") && (e.preventDefault(), addTag())} onBlur={addTag} placeholder="+ add tag" aria-label="Add tag" />
                 </div>
               </div>
+              <CustomFields on="contact" record={contact} />
               <label className="flex items-center gap-2.5 pt-1 text-sm">
                 <input type="checkbox" className="size-4 accent-[#0b8a8a]" checked={contact.unsubscribed} onChange={(e) => save({ unsubscribed: e.target.checked })} />
                 Don&apos;t send them marketing emails
@@ -149,7 +152,7 @@ export default function ContactPage() {
               <ul className="space-y-2">{deals.map((d) => (
                 <li key={d.id}><Link href={`/pipeline?deal=${d.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 hover:bg-cloud">
                   <span className="min-w-0"><span className="block truncate font-semibold text-ink">{d.project || d.title}</span><span className="text-[13px] text-muted">{d.value ? money(d.value) : d.budget}</span></span>
-                  <Badge tone={d.stage === "won" ? "green" : d.stage === "lost" ? "gray" : "iris"}>{stageLabel(d.stage)}</Badge></Link></li>
+                  <Badge tone={d.stage === "won" ? "green" : d.stage === "lost" ? "gray" : "iris"}>{stageName(d.stage)}</Badge></Link></li>
               ))}</ul>
             )}
           </Card>

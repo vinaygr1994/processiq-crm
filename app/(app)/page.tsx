@@ -9,13 +9,15 @@ import { useCrm } from "@/lib/store";
 import { aiToday } from "@/lib/ai";
 import { nowMs } from "@/lib/clock";
 import { dueLabel, money, timeAgo, todayStr } from "@/lib/format";
-import { STAGES, isOpen } from "@/lib/stages";
+import { isOpen } from "@/lib/stages";
+import { useStages } from "@/lib/useStages";
 
 const DAY = 86400000;
 const toneDot = { info: "bg-teal", warn: "bg-sun", won: "bg-emerald-500", skip: "bg-[#c4cbdb]" } as const;
 
 export default function TodayPage() {
   const { data, update, add, toast } = useCrm();
+  const { stages } = useStages();
   const [modal, setModal] = useState<"lead" | "contact" | "import" | null>(null);
   const [quickTask, setQuickTask] = useState("");
   const [ai, setAi] = useState<{ items: string[]; live: boolean } | null>(null);
@@ -38,7 +40,7 @@ export default function TodayPage() {
     const quoted = deals.filter((d) => d.stage === "quoted");
     const won = deals.filter((d) => d.stage === "won" || d.stage === "completed");
     const sent = data.autolog.filter((l) => l.tone !== "skip" && /\bsent\b/i.test(l.message)).length;
-    const funnel = STAGES.map((s) => ({ ...s, n: deals.filter((d) => d.stage === s.id).length }));
+    const funnel = stages.map((s) => ({ ...s, n: deals.filter((d) => d.stage === s.id).length }));
     const sources = [...new Set(deals.map((d) => d.source || "Other"))].map((src) => {
       const ds = deals.filter((d) => (d.source || "Other") === src);
       const ids = new Set(ds.map((d) => d.id));

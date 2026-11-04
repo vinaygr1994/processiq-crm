@@ -204,3 +204,9 @@ end $$;
 -- ===== Lead intake (migration 003) =====
 alter table public.settings add column if not exists intake_key text not null default encode(gen_random_bytes(16), 'hex');
 create unique index if not exists settings_intake_key_idx on public.settings(intake_key);
+
+-- ===== Customization (migration 004) =====
+alter table public.settings add column if not exists stage_labels jsonb not null default '{}';
+alter table public.settings add column if not exists custom_fields jsonb not null default '[]';
+alter table public.contacts add column if not exists custom jsonb not null default '{}';
+alter table public.deals add column if not exists custom jsonb not null default '{}';

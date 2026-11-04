@@ -8,7 +8,9 @@ import { useCrm } from "@/lib/store";
 import { useFlow } from "@/lib/flow";
 import { downloadIcs } from "@/lib/ics";
 import { money, timeAgo } from "@/lib/format";
-import { JOURNEY, STAGES, stageLabel } from "@/lib/stages";
+import { JOURNEY } from "@/lib/stages";
+import { useStages } from "@/lib/useStages";
+import { CustomFields } from "./CustomFields";
 import type { Visit } from "@/lib/types";
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -17,6 +19,7 @@ const toneOf = { info: "bg-teal-t text-teal-d", warn: "bg-sun-t text-[#9a5a00]",
 export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => void }) {
   const { data, update, remove, removeMany, toast } = useCrm();
   const flow = useFlow();
+  const { stages, name: stageName } = useStages();
   const deal = data.deals.find((d) => d.id === dealId);
   const [sub, setSub] = useState<"visit" | "result" | "quote" | "lost" | "delete" | null>(null);
   const [resultFor, setResultFor] = useState<Visit | null>(null);
@@ -28,7 +31,7 @@ export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => 
   const visits = data.visits.filter((v) => v.deal_id === deal.id).sort((a, b) => b.starts_at.localeCompare(a.starts_at));
   const open = visits.find((v) => v.status === "scheduled");
   const log = data.autolog.filter((l) => l.deal_id === deal.id && l.tone !== "skip");
-  const stage = STAGES.find((s) => s.id === deal.stage)!;
+  const stage = stages.find((s) => s.id === deal.stage)!;
   const lost = deal.stage === "lost";
 
   const actions: React.ReactNode[] = [];
@@ -62,7 +65,7 @@ export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => 
           </ol>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={lost ? "gray" : deal.stage === "won" || deal.stage === "completed" ? "green" : "iris"}>{stageLabel(deal.stage)}</Badge>
+            <Badge tone={lost ? "gray" : deal.stage === "won" || deal.stage === "completed" ? "green" : "iris"}>{stageName(deal.stage)}</Badge>
             {lost && deal.lost_reason && <Badge tone="gray">{deal.lost_reason}</Badge>}
             <span className="text-sm text-muted">in this stage {timeAgo(deal.stage_at).replace(" ago", "")}</span>
           </div>
@@ -75,6 +78,8 @@ export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => 
             <div><div className="text-muted">Source</div><div className="font-semibold text-ink">{deal.source || "—"}</div></div>
             <div><div className="text-muted">Where</div><div className="font-semibold text-ink">{deal.address || "—"}</div></div>
           </div>
+
+          <CustomFields on="deal" record={deal} compact />
 
           {actions.length > 0 && <div><div className="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Next step</div><div className="flex flex-wrap gap-2">{actions}</div></div>}
 

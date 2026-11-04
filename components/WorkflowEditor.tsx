@@ -3,7 +3,10 @@ import { useState } from "react";
 import { Icon } from "./Icon";
 import { Field } from "./ui";
 import { MERGE_TAGS } from "@/lib/engine/merge";
+import { useStages } from "@/lib/useStages";
+import { useCrm } from "@/lib/store";
 import { STAGES } from "@/lib/stages";
+import { customTag } from "@/lib/engine/merge";
 import type { Cond, CondField, CondOp, Step, Trigger, TriggerType } from "@/lib/engine/types";
 import { uid } from "@/lib/engine/types";
 
@@ -15,9 +18,9 @@ export const TRIGGERS: { id: TriggerType; label: string }[] = [
   { id: "visit_no_show", label: "A visit is marked no-show" },
   { id: "quote_sent", label: "A quote is sent" },
 ];
-export const triggerText = (t: Trigger) => {
+export const triggerText = (t: Trigger, name: (id: string) => string = (id) => STAGES.find((s) => s.id === id)?.label ?? id) => {
   const base = TRIGGERS.find((x) => x.id === t.type)?.label ?? t.type;
-  if (t.type === "stage_changed") return `${base}: ${STAGES.find((s) => s.id === t.stage)?.label ?? t.stage}`;
+  if (t.type === "stage_changed") return `${base}: ${name(t.stage ?? "")}`;
   if (t.type === "lead_created" && t.source) return `${base} from ${t.source}`;
   return base;
 };
@@ -32,6 +35,7 @@ const OPS: { id: CondOp; label: string }[] = [
 ];
 
 export function CondEditor({ cond, onChange }: { cond: Cond; onChange: (c: Cond) => void }) {
+  const { stages: STAGES } = useStages();
   const noVal = cond.op === "empty" || cond.op === "not_empty";
   const opts = cond.field === "deal.stage" ? STAGES.map((s) => [s.id, s.label]) : cond.field === "visit.status" ? [["scheduled", "Scheduled"], ["done", "Done"], ["no_show", "No-show"], ["cancelled", "Cancelled"]] : cond.field === "visit.priority" ? [["hot", "Hot"], ["warm", "Warm"], ["cold", "Cold"]] : null;
   return (
@@ -61,14 +65,17 @@ const TYPES: { id: string; label: string; icon: string; hint: string; make: () =
 const meta = (s: Step) => TYPES.find((t) => t.id === s.type)!;
 
 function Tags({ onPick }: { onPick: (t: string) => void }) {
+  const { settings } = useCrm();
+  const extra = (settings?.custom_fields ?? []).map((f) => customTag(f.label));
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Insert a merge tag">
-      {MERGE_TAGS.map((t) => <button key={t} type="button" onClick={() => onPick(`{{${t}}}`)} className="rounded-full bg-cloud px-2 py-0.5 text-[11.5px] font-semibold text-muted hover:bg-teal-t hover:text-teal-d">{`{{${t}}}`}</button>)}
+      {[...MERGE_TAGS, ...extra].map((t) => <button key={t} type="button" onClick={() => onPick(`{{${t}}}`)} className="rounded-full bg-cloud px-2 py-0.5 text-[11.5px] font-semibold text-muted hover:bg-teal-t hover:text-teal-d">{`{{${t}}}`}</button>)}
     </div>
   );
 }
 
 function StepBody({ step, set }: { step: Step; set: (s: Step) => void }) {
+  const { stages: STAGES } = useStages();
   const num = "field !w-20 !py-2";
   if (step.type === "email") return (
     <div className="space-y-2.5">
