@@ -3,8 +3,8 @@ import { supabase } from "./supabase";
 import { seedRows } from "./seed";
 import type { Rows, TableName, Tables } from "./types";
 
-const TABLES: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "campaigns", "emails", "settings"];
-const KEY = "piq-crm-demo-v2";
+const TABLES: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "campaigns", "emails", "settings", "workflows", "workflow_runs"];
+const KEY = "piq-crm-demo-v3";
 
 export interface Backend {
   loadAll(): Promise<Rows>;

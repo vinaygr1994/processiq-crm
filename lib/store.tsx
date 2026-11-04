@@ -7,7 +7,7 @@ import { resetClock } from "./clock";
 import { supabase } from "./supabase";
 import type { NewRow, Rows, Settings, TableName, Tables } from "./types";
 
-const EMPTY: Rows = { contacts: [], deals: [], visits: [], autolog: [], tasks: [], activities: [], templates: [], campaigns: [], emails: [], settings: [] };
+const EMPTY: Rows = { contacts: [], deals: [], visits: [], autolog: [], tasks: [], activities: [], templates: [], campaigns: [], emails: [], settings: [], workflows: [], workflow_runs: [] };
 export interface Toast { id: number; text: string; tone: "ok" | "error" }
 
 interface Ctx {
@@ -20,6 +20,7 @@ interface Ctx {
   remove: (t: TableName, id: string) => Promise<void>;
   removeMany: (t: TableName, ids: string[]) => Promise<void>;
   saveSettings: (patch: Partial<Settings>) => Promise<void>;
+  reload: () => Promise<void>;
   signOut: () => Promise<void>;
   resetDemoData: () => Promise<void>;
   toast: (text: string, tone?: "ok" | "error") => void;
@@ -122,7 +123,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const saveSettings = useCallback(async (patch: Partial<Settings>) => {
     if (settings) await update("settings", settings.id, patch);
     else
-      await add("settings", { business_name: "", sender_name: "", reply_to: "", address: "", signature: "", reps: [], owner_email: "", review_link: "", booking_link: "", automations_off: [], rr_index: 0, ...patch });
+      await add("settings", { business_name: "", sender_name: "", reply_to: "", address: "", signature: "", reps: [], owner_email: "", review_link: "", booking_link: "", automations_off: [], rr_index: 0, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", starters_installed: false, ...patch });
   }, [settings, update, add]);
 
   const signOut = useCallback(async () => {
@@ -139,8 +140,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, [load, toast]);
 
   const value = useMemo<Ctx>(
-    () => ({ data, ready, userEmail, settings, add, update, remove, removeMany, saveSettings, signOut, resetDemoData, toast, toasts }),
-    [data, ready, userEmail, settings, add, update, remove, removeMany, saveSettings, signOut, resetDemoData, toast, toasts],
+    () => ({ data, ready, userEmail, settings, add, update, remove, removeMany, saveSettings, reload: load, signOut, resetDemoData, toast, toasts }),
+    [data, ready, userEmail, settings, add, update, remove, removeMany, saveSettings, load, signOut, resetDemoData, toast, toasts],
   );
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

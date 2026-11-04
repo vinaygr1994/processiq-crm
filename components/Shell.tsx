@@ -15,7 +15,7 @@ const NAV = [
   { href: "/", label: "Today", icon: "today" },
   { href: "/contacts", label: "Contacts", icon: "users" },
   { href: "/pipeline", label: "Jobs", icon: "pipeline" },
-  { href: "/automations", label: "Autopilot", icon: "bolt" },
+  { href: "/automations", label: "Workflows", icon: "bolt" },
   { href: "/emails", label: "Email", icon: "mail" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];

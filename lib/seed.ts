@@ -1,4 +1,5 @@
 import type { Rows } from "./types";
+import { STARTERS } from "./engine/starters";
 
 const M = 60000, H = 3600000, D = 86400000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -59,8 +60,10 @@ export function seedRows(): Rows {
     ],
     campaigns: [],
     emails: [],
+    workflows: STARTERS.map((w) => ({ ...w, id: "wf-" + w.template_id, active: true, activated_at: new Date().toISOString(), created_at: new Date().toISOString() })),
+    workflow_runs: [],
     settings: [
-      { id: "s1", business_name: "Greenleaf Renovations", sender_name: "Maria from Greenleaf", reply_to: "", address: "123 Main St, San Diego, CA", signature: "Maria\nGreenleaf Renovations", reps: ["Maria", "Dan"], owner_email: "", review_link: "https://g.page/r/your-review-link", booking_link: "", automations_off: [], rr_index: 1, created_at: ago(30 * D) },
+      { id: "s1", business_name: "Greenleaf Renovations", sender_name: "Maria from Greenleaf", reply_to: "", address: "123 Main St, San Diego, CA", signature: "Maria\nGreenleaf Renovations", reps: ["Maria", "Dan"], owner_email: "", review_link: "https://g.page/r/your-review-link", booking_link: "", automations_off: [], rr_index: 1, timezone: "America/Toronto", starters_installed: true, created_at: ago(30 * D) },
     ],
   };
 }

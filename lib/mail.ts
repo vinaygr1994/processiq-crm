@@ -1,0 +1,50 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { esc, signId } from "./server";
+
+export interface MailIn { sb: SupabaseClient; ownerId?: string; to: string; subject: string; body: string; contactId?: string; marketing?: boolean; toOwner?: boolean; baseUrl: string }
+export type MailOut = { ok: true } | { ok: false; code: number; error: string };
+
+/** Sends one email through Resend as the business. Used by the app, the workflow engine and the scheduler. */
+export async function sendMail(o: MailIn): Promise<MailOut> {
+  const key = process.env.RESEND_API_KEY, fromAddr = process.env.RESEND_FROM_EMAIL;
+  if (!key || !fromAddr) return { ok: false, code: 400, error: "Email sending isn't set up yet. Add your Resend key in Vercel settings." };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scope = (q: any) => (o.ownerId ? q.eq("owner_id", o.ownerId) : q);
+
+  const { data: s } = (await scope(o.sb.from("settings").select("*")).limit(1).maybeSingle()) as { data: Record<string, string> | null };
+  type C = { id: string; email: string; unsubscribed: boolean };
+  let contact = null as C | null;
+  if (o.toOwner) {
+    if (!s?.owner_email || s.owner_email.toLowerCase() !== o.to.toLowerCase()) return { ok: false, code: 400, error: "Owner alert email isn't set in Settings." };
+  } else {
+    if (!o.contactId) return { ok: false, code: 400, error: "Choose a contact to email." };
+    const r = (await scope(o.sb.from("contacts").select("id,email,unsubscribed").eq("id", o.contactId)).maybeSingle()) as { data: C | null };
+    contact = r.data;
+    if (!contact || contact.email.toLowerCase() !== o.to.toLowerCase()) return { ok: false, code: 404, error: "That contact wasn't found." };
+    if (o.marketing && contact.unsubscribed) return { ok: false, code: 400, error: "This contact has unsubscribed." };
+  }
+
+  const name = (s?.sender_name || s?.business_name || "").replace(/["<>\r\n]/g, "").trim();
+  const from = name ? `${name} <${fromAddr}>` : fromAddr;
+  let plain = o.body;
+  let html = `<div style="font:15px/1.6 -apple-system,Segoe UI,Arial,sans-serif;color:#222">${esc(o.body).replace(/\n/g, "<br>")}</div>`;
+  const headers: Record<string, string> = {};
+  if (o.marketing && contact) {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return { ok: false, code: 400, error: "Campaigns need the unsubscribe setup (SUPABASE_SERVICE_ROLE_KEY)." };
+    if (!s?.address?.trim() || !s?.business_name?.trim()) return { ok: false, code: 400, error: "Add your business name and mailing address in Settings first." };
+    const url = `${o.baseUrl}/api/unsubscribe?c=${contact.id}&s=${signId(contact.id)}`;
+    plain += `\n\n--\n${s.business_name}, ${s.address}\nUnsubscribe: ${url}`;
+    html += `<hr style="border:0;border-top:1px solid #e4e8f0;margin:28px 0 14px"><div style="font:12.5px/1.5 Arial,sans-serif;color:#6b7690">${esc(s.business_name)} · ${esc(s.address)}<br><a href="${url}" style="color:#6b7690">Unsubscribe</a></div>`;
+    headers["List-Unsubscribe"] = `<${url}>`;
+    headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+  }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [o.to], subject: o.subject, text: plain, html, headers, ...(s?.reply_to ? { reply_to: s.reply_to } : {}) }),
+  });
+  if (!res.ok) {
+    const e = (await res.json().catch(() => ({}))) as { message?: string };
+    return { ok: false, code: 502, error: e.message || `The email service rejected this message (${res.status}).` };
+  }
+  return { ok: true };
+}

@@ -1,4 +1,5 @@
-export type Stage = "new" | "contacted" | "visit_booked" | "visit_done" | "quoted" | "won" | "completed" | "lost";
+export type Stage = string;
+export type DefaultStage = "new" | "contacted" | "visit_booked" | "visit_done" | "quoted" | "won" | "completed" | "lost";
 
 export interface Contact {
   id: string;
@@ -109,10 +110,41 @@ export interface Settings {
   booking_link: string;
   automations_off: string[];
   rr_index: number;
+  timezone: string;
+  starters_installed: boolean;
+  created_at: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  trigger: import("./engine/types").Trigger;
+  steps: import("./engine/types").Step[];
+  exit: import("./engine/types").Cond[];
+  active: boolean;
+  activated_at: string;
+  template_id: string;
+  created_at: string;
+}
+export interface WorkflowRun {
+  id: string;
+  workflow_id: string;
+  deal_id: string | null;
+  contact_id: string | null;
+  visit_id: string | null;
+  trigger_key: string;
+  pos: number[];
+  status: "active" | "done" | "stopped";
+  next_run_at: string;
+  locked_until: string | null;
+  note: string;
   created_at: string;
 }
 
 export interface Tables {
+  workflows: Workflow;
+  workflow_runs: WorkflowRun;
   contacts: Contact;
   deals: Deal;
   visits: Visit;
