@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "./Logo";
@@ -63,10 +62,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           </form>
           {!signup && <button onClick={reset} className="mt-4 text-sm font-semibold text-teal-d hover:underline">Forgot password?</button>}
         </div>
-        <p className="mt-6 text-center text-sm text-muted">
-          {signup ? "Already have an account? " : "New here? "}
-          <Link href={signup ? "/login" : "/signup"} className="font-semibold text-teal-d hover:underline">{signup ? "Log in" : "Create an account"}</Link>
-        </p>
+        {!signup && <p className="mt-6 text-center text-sm text-muted">Invite-only. Ask your administrator for access.</p>}
       </div>
     </main>
   );
