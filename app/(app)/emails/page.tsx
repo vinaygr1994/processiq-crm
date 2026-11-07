@@ -1,10 +1,11 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
-import { AiButton, Badge, Button, Card, ConfirmModal, Empty, Field, Modal, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, ConfirmModal, Empty, Field, Modal, PageHeader } from "@/components/ui";
 import { useCrm } from "@/lib/store";
 import { callApi } from "@/lib/api";
-import { aiDraftEmail } from "@/lib/ai";
+import { EmailEditor } from "@/components/EmailEditor";
+import { emailVars, parseDesign, plainOf, renderDesign } from "@/lib/emailDesign";
 import { fill, timeAgo } from "@/lib/format";
 import { useStatus } from "@/lib/status";
 import type { Campaign, Template } from "@/lib/types";
@@ -17,16 +18,17 @@ function TemplateModal({ t, onClose }: { t?: Template; onClose: () => void }) {
   const [err, setErr] = useState("");
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!f.name.trim() || !f.subject.trim() || !f.body.trim()) return setErr("Please fill in the name, subject and message.");
+    const d = parseDesign(f.body);
+    if (!f.name.trim() || !f.subject.trim() || (d ? d.blocks.length === 0 : !f.body.trim())) return setErr("Please fill in the name, subject and message.");
     if (t) await update("templates", t.id, f); else await add("templates", f);
     onClose();
   }
   return (
-    <Modal title={t ? "Edit template" : "New template"} onClose={onClose} wide>
+    <Modal title={t ? "Edit template" : "New template"} onClose={onClose} wide="xl">
       <form onSubmit={save} className="space-y-4">
         <Field label="Template name"><input className="field" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Quote follow-up" /></Field>
-        <Field label="Subject"><input className="field" value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} /></Field>
-        <Field label="Message" hint="Use {{first_name}} and {{company}} to personalise each email."><textarea className="field !min-h-[200px]" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} /></Field>
+        <EmailEditor subject={f.subject} body={f.body} onSubject={(subject) => setF((x) => ({ ...x, subject }))} onBody={(body) => setF((x) => ({ ...x, body }))}
+          aiContact={{ name: "{{first_name}}", company: "{{company}}" }} />
         {err && <p role="alert" className="text-sm font-medium text-rose">{err}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="soft" onClick={onClose}>Cancel</Button><Button type="submit">Save template</Button></div>
       </form>
@@ -39,9 +41,6 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
   const status = useStatus();
   const [step, setStep] = useState(1);
   const [f, setF] = useState({ name: "", subject: "", body: "", audience: "all" });
-  const [goal, setGoal] = useState("");
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiNote, setAiNote] = useState("");
   const [err, setErr] = useState("");
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -52,20 +51,10 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
   );
   const needsSetup = !settings?.address?.trim() || !settings?.business_name?.trim();
 
-  async function draft() {
-    setErr(""); setAiNote("");
-    if (!goal.trim()) return setErr("Tell the AI what this email is about first.");
-    setAiBusy(true);
-    try {
-      const r = await aiDraftEmail({ goal, contact: { name: "{{first_name}}", company: "{{company}}" }, business: settings?.business_name ?? "", sender: settings?.sender_name ?? "", recent: [], previous: f.body ? { subject: f.subject, body: f.body } : undefined });
-      setF((x) => ({ ...x, subject: r.result.subject, body: r.result.body, name: x.name || r.result.subject }));
-      if (!r.live) setAiNote("Sample draft. Add an Anthropic API key to get personalised drafts.");
-    } catch (e) { setErr((e as Error).message); }
-    setAiBusy(false);
-  }
   function next() {
     setErr("");
-    if (step === 1 && (!f.subject.trim() || !f.body.trim())) return setErr("Please add a subject and a message.");
+    const d = parseDesign(f.body);
+    if (step === 1 && (!f.subject.trim() || (d ? d.blocks.length === 0 : !f.body.trim()))) return setErr("Please add a subject and a message.");
     if (step === 2 && audience.length === 0) return setErr("No one to send to. Add contacts with email addresses first.");
     setStep(step + 1);
   }
@@ -76,13 +65,15 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
     if (!camp) return;
     let ok = 0, bad = 0;
     setProgress({ done: 0, total: audience.length });
+    const design = parseDesign(f.body);
     for (const c of audience) {
+      const text = design ? plainOf(f.body, emailVars(c, settings)) : fill(f.body, c);
       try {
-        const r = await callApi<{ status: "sent" | "demo" }>("/api/email/send", { to: c.email, subject: fill(f.subject, c), body: fill(f.body, c), contactId: c.id, marketing: true });
-        await add("emails", { contact_id: c.id, to_email: c.email, subject: fill(f.subject, c), body: fill(f.body, c), status: r.status, error: "", campaign_id: camp.id });
+        const r = await callApi<{ status: "sent" | "demo" }>("/api/email/send", { to: c.email, subject: fill(f.subject, c), body: text, design: design ?? undefined, contactId: c.id, marketing: true });
+        await add("emails", { contact_id: c.id, to_email: c.email, subject: fill(f.subject, c), body: text, status: r.status, error: "", campaign_id: camp.id });
         ok++;
       } catch (e) {
-        await add("emails", { contact_id: c.id, to_email: c.email, subject: fill(f.subject, c), body: fill(f.body, c), status: "failed", error: (e as Error).message, campaign_id: camp.id });
+        await add("emails", { contact_id: c.id, to_email: c.email, subject: fill(f.subject, c), body: text, status: "failed", error: (e as Error).message, campaign_id: camp.id });
         bad++;
       }
       setProgress({ done: ok + bad, total: audience.length });
@@ -93,7 +84,7 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="New email campaign" onClose={progress ? () => {} : onClose} wide>
+    <Modal title="New email campaign" onClose={progress ? () => {} : onClose} wide="xl">
       <ol className="mb-5 flex gap-2 text-sm font-semibold" aria-label="Steps">
         {["Write", "Choose who", "Review & send"].map((l, i) => (
           <li key={l} className={`flex flex-1 items-center gap-2 rounded-full px-3 py-1.5 ${step === i + 1 ? "bg-ink text-white" : step > i + 1 ? "bg-teal-t text-teal-d" : "bg-cloud text-muted"}`}>
@@ -101,25 +92,8 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
         ))}
       </ol>
       {step === 1 && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-line bg-gradient-to-br from-white to-iris-t/40 p-4">
-            <div className="mb-2 text-sm font-semibold text-ink">Write it with AI</div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input className="field" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="e.g. Announce our spring offer: 10% off first service" onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), draft())} />
-              <AiButton onClick={draft} busy={aiBusy}>{f.body ? "Rewrite" : "Write draft"}</AiButton>
-            </div>
-            {aiNote && <p className="mt-2 text-[13px] text-muted">{aiNote}</p>}
-          </div>
-          {data.templates.length > 0 && (
-            <Field label="Or start from a template">
-              <select className="field" defaultValue="" onChange={(e) => { const t = data.templates.find((x) => x.id === e.target.value); if (t) setF({ ...f, subject: t.subject, body: t.body }); }}>
-                <option value="" disabled>Choose a template…</option>{data.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </Field>
-          )}
-          <Field label="Subject"><input className="field" value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} /></Field>
-          <Field label="Message" hint="Use {{first_name}} and {{company}} to personalise."><textarea className="field !min-h-[200px]" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} /></Field>
-        </div>
+        <EmailEditor subject={f.subject} body={f.body} onSubject={(subject) => setF((x) => ({ ...x, subject }))} onBody={(body) => setF((x) => ({ ...x, body }))}
+          contact={audience[0] ?? null} aiContact={{ name: "{{first_name}}", company: "{{company}}" }} aiPlaceholder="e.g. Announce our spring offer: 10% off first service" />
       )}
       {step === 2 && (
         <div className="space-y-4">
@@ -138,7 +112,9 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
           <div className="rounded-2xl border border-line">
             <div className="border-b border-line px-5 py-3 text-sm"><span className="text-muted">To:</span> <strong>{audience.length}</strong> contact{audience.length === 1 ? "" : "s"}{f.audience !== "all" && <> tagged <Badge tone="teal">{f.audience}</Badge></>}</div>
             <div className="border-b border-line px-5 py-3 text-sm"><span className="text-muted">Subject:</span> <strong className="text-ink">{f.subject}</strong></div>
-            <p className="whitespace-pre-wrap px-5 py-4 text-sm">{audience[0] ? fill(f.body, audience[0]) : f.body}</p>
+            {parseDesign(f.body)
+              ? <iframe title="Email preview" sandbox="" className="block h-[420px] w-full border-0 bg-cloud" srcDoc={renderDesign(parseDesign(f.body)!, emailVars(audience[0] ?? null, settings), { business: settings?.business_name, address: settings?.address, unsubscribeUrl: "#" }).html} />
+              : <p className="whitespace-pre-wrap px-5 py-4 text-sm">{audience[0] ? fill(f.body, audience[0]) : f.body}</p>}
           </div>
           <p className="text-sm text-muted">Each email will include an unsubscribe link and your business address.</p>
           {needsSetup && !status?.demo && <p className="rounded-xl bg-sun-t px-4 py-3 text-sm text-[#7a4700]">Add your business name and mailing address in Settings before sending.</p>}
@@ -191,8 +167,8 @@ export default function EmailPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">{data.templates.map((t) => (
           <Card key={t.id} className="flex flex-col">
-            <h3 className="font-semibold">{t.name}</h3><p className="mt-0.5 truncate text-sm font-medium text-ink">{t.subject}</p>
-            <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{t.body}</p>
+            <h3 className="flex items-center gap-2 font-semibold">{t.name}{parseDesign(t.body) && <Badge tone="iris">Designed</Badge>}</h3><p className="mt-0.5 truncate text-sm font-medium text-ink">{t.subject}</p>
+            <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{plainOf(t.body, { first_name: "{{first_name}}", first: "{{first_name}}", name: "{{first_name}}" })}</p>
             <div className="mt-auto flex gap-2 pt-4"><Button size="sm" variant="soft" onClick={() => setTpl(t)}>Edit</Button><Button size="sm" variant="ghost" onClick={() => setDel(t)}>Delete</Button></div>
           </Card>))}</div>
       ))}

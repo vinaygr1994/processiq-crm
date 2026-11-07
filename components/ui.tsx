@@ -34,7 +34,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
   );
 }
 
-export function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+export function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean | "xl" }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", h);
@@ -48,7 +48,7 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={title}>
       <div className="anim-fade absolute inset-0 bg-ink/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`anim-pop relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl ${wide ? "sm:max-w-2xl" : "sm:max-w-lg"}`}>
+      <div className={`anim-pop relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl ${wide === "xl" ? "sm:max-w-6xl" : wide ? "sm:max-w-2xl" : "sm:max-w-lg"}`}>
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button onClick={onClose} className="grid size-9 place-items-center rounded-full text-muted hover:bg-cloud" aria-label="Close">
