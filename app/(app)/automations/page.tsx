@@ -11,6 +11,7 @@ import { isDemo } from "@/lib/config";
 import { resetClock, skipAhead } from "@/lib/clock";
 import { timeAgo } from "@/lib/format";
 import { STARTERS } from "@/lib/engine/starters";
+import { isJourney } from "@/lib/journeys";
 import { uid } from "@/lib/engine/types";
 import type { Workflow } from "@/lib/types";
 
@@ -25,7 +26,7 @@ export default function AutomationsPage() {
   const [del, setDel] = useState<Workflow | null>(null);
   const [reset, setReset] = useState(false);
   const [picker, setPicker] = useState(false);
-  const wfs = data.workflows.slice().sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const wfs = data.workflows.filter((w) => !isJourney(w)).sort((a, b) => a.created_at.localeCompare(b.created_at));
   const log = data.autolog.slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 40);
   const deals = new Map(data.deals.map((d) => [d.id, d]));
   const contacts = new Map(data.contacts.map((c) => [c.id, c]));

@@ -8,7 +8,7 @@ export function serverPort(sb: SupabaseClient, baseUrl: string, ownerId?: string
   return {
     now: () => Date.now(),
     async email(o) {
-      const r = await sendMail({ sb, ownerId, to: o.to, subject: o.subject, body: o.body, contactId: o.contactId, marketing: o.marketing, toOwner: !o.contactId, baseUrl });
+      const r = await sendMail({ sb, ownerId, to: o.to, subject: o.subject, body: o.body, contactId: o.contactId, marketing: o.marketing, toOwner: !o.contactId, baseUrl, design: o.design, vars: o.vars, trackId: o.trackId });
       return r.ok ? { status: "sent" } : { status: o.contactId || r.code !== 400 ? "failed" : "skipped", error: r.error };
     },
     async sms(o) { return sendSms(o.to, o.body); },

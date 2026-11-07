@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { esc, signId } from "./server";
 import { emailVars, renderDesign, type Design } from "./emailDesign";
 
-export interface MailIn { sb: SupabaseClient; ownerId?: string; to: string; subject: string; body: string; contactId?: string; marketing?: boolean; toOwner?: boolean; baseUrl: string; design?: Design; test?: boolean }
+export interface MailIn { sb: SupabaseClient; ownerId?: string; to: string; subject: string; body: string; contactId?: string; marketing?: boolean; toOwner?: boolean; baseUrl: string; design?: Design; test?: boolean;
+  /** Extra merge values (journeys add job and visit details). */ vars?: Record<string, string>;
+  /** The email log row id: turns on open and click tracking. */ trackId?: string }
 export type MailOut = { ok: true } | { ok: false; code: number; error: string };
 
 /** Sends one email through Resend as the business. Used by the app, the workflow engine and the scheduler. */
@@ -41,7 +43,7 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
   let plain = o.body;
   let html: string;
   if (o.design) {
-    const r = renderDesign(o.design, emailVars(contact ?? { name: "Sarah Collins", company: "Collins Family" }, s as never), { business: s?.business_name, address: s?.address, unsubscribeUrl: unsubUrl || undefined, assetBase: o.baseUrl });
+    const r = renderDesign(o.design, { ...emailVars(contact ?? { name: "Sarah Collins", company: "Collins Family" }, s as never), ...(o.vars ?? {}) }, { business: s?.business_name, address: s?.address, unsubscribeUrl: unsubUrl || undefined, assetBase: o.baseUrl });
     html = r.html; plain = r.text;
   } else {
     html = `<div style="font:15px/1.6 -apple-system,Segoe UI,Arial,sans-serif;color:#222">${esc(o.body).replace(/\n/g, "<br>")}</div>`;
@@ -50,6 +52,7 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
       html += `<hr style="border:0;border-top:1px solid #e4e8f0;margin:28px 0 14px"><div style="font:12.5px/1.5 Arial,sans-serif;color:#6b7690">${esc(s?.business_name ?? "")} · ${esc(s?.address ?? "")}<br><a href="${unsubUrl}" style="color:#6b7690">Unsubscribe</a></div>`;
     }
   }
+  if (o.trackId && !o.test && process.env.SUPABASE_SERVICE_ROLE_KEY) html = addTracking(html, o.trackId, o.baseUrl, unsubUrl);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from, to: [o.to], subject, text: plain, html, headers, ...(s?.reply_to ? { reply_to: s.reply_to } : {}) }),
@@ -59,4 +62,15 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
     return { ok: false, code: 502, error: e.message || `The email service rejected this message (${res.status}).` };
   }
   return { ok: true };
+}
+
+/** Adds an invisible open pixel and routes links through /api/t/c so opens and clicks are recorded. */
+export function addTracking(html: string, id: string, base: string, skip = ""): string {
+  const out = html.replace(/href="(https?:\/\/[^"]+)"/g, (m, raw: string) => {
+    const u = raw.replace(/&amp;/g, "&");
+    if (u === skip || u.startsWith(base + "/api/unsubscribe")) return m;
+    return `href="${base}/api/t/c?e=${id}&amp;u=${encodeURIComponent(u)}&amp;s=${signId(`${id}|${u}`)}"`;
+  });
+  const pixel = `<img src="${base}/api/t/o?e=${id}&amp;s=${signId(id)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">`;
+  return out.includes("</body>") ? out.replace("</body>", `${pixel}</body>`) : out + pixel;
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Db } from "./engine";
+import { missingColumn } from "../config";
 import type { Tables } from "../types";
 
 /** Supabase storage. With a service-role client pass the owner's id so every query is scoped to that one user. */
@@ -18,9 +19,15 @@ export function supaDb(sb: SupabaseClient, ownerId?: string): Db {
       return out as Tables[typeof t][];
     },
     async insert(t, row) {
-      const { data, error } = await sb.from(t).insert((ownerId ? { ...row, owner_id: ownerId } : row) as never).select().single();
-      if (error) throw new Error(`${t}: ${error.message}`);
-      return data as Tables[typeof t];
+      let r: Record<string, unknown> = ownerId ? { ...row, owner_id: ownerId } : { ...row };
+      for (let i = 0; i < 6; i++) {
+        const { data, error } = await sb.from(t).insert(r as never).select().single();
+        if (!error) return data as Tables[typeof t];
+        const col = missingColumn(error.message);
+        if (!col || !(col in r)) throw new Error(`${t}: ${error.message}`);
+        r = { ...r }; delete r[col];
+      }
+      throw new Error(`${t}: insert failed`);
     },
     async update(t, id, patch) {
       const { error } = await sb.from(t).update(patch as never).eq("id", id);

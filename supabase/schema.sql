@@ -115,6 +115,10 @@ create table if not exists public.emails (
   status text not null default 'sent' check (status in ('sent','failed','demo')),
   error text not null default '',
   campaign_id uuid references public.campaigns(id) on delete set null,
+  opened_at timestamptz,
+  clicked_at timestamptz,
+  run_id uuid,
+  step_id text,
   created_at timestamptz not null default now()
 );
 

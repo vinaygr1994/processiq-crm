@@ -31,9 +31,10 @@ export function EmailComposer({ contact, onClose }: { contact: Contact; onClose:
     const subj = fill(subject.trim(), contact);
     // Designed emails are personalised and given their footer on the server; plain ones get your signature here.
     const finalBody = design ? plainOf(body, emailVars(contact, settings)) : fill(body.trimEnd(), contact) + (signature ? `\n\n${signature}` : "");
+    const trackId = crypto.randomUUID();
     try {
-      const r = await callApi<{ status: "sent" | "demo"; }>("/api/email/send", { to: contact.email, subject: subj, body: finalBody, design: design ?? undefined, contactId: contact.id });
-      await add("emails", { contact_id: contact.id, to_email: contact.email, subject: subj, body: finalBody, status: r.status, error: "", campaign_id: null });
+      const r = await callApi<{ status: "sent" | "demo"; }>("/api/email/send", { to: contact.email, subject: subj, body: finalBody, design: design ?? undefined, contactId: contact.id, trackId });
+      await add("emails", { id: trackId, contact_id: contact.id, to_email: contact.email, subject: subj, body: finalBody, status: r.status, error: "", campaign_id: null } as never);
       toast(r.status === "demo" ? "Demo: saved to history (not really sent)" : "Email sent");
       onClose();
     } catch (e) {

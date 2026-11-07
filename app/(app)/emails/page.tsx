@@ -68,9 +68,10 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
     const design = parseDesign(f.body);
     for (const c of audience) {
       const text = design ? plainOf(f.body, emailVars(c, settings)) : fill(f.body, c);
+      const trackId = crypto.randomUUID();
       try {
-        const r = await callApi<{ status: "sent" | "demo" }>("/api/email/send", { to: c.email, subject: fill(f.subject, c), body: text, design: design ?? undefined, contactId: c.id, marketing: true });
-        await add("emails", { contact_id: c.id, to_email: c.email, subject: fill(f.subject, c), body: text, status: r.status, error: "", campaign_id: camp.id });
+        const r = await callApi<{ status: "sent" | "demo" }>("/api/email/send", { to: c.email, subject: fill(f.subject, c), body: text, design: design ?? undefined, contactId: c.id, marketing: true, trackId });
+        await add("emails", { id: trackId, contact_id: c.id, to_email: c.email, subject: fill(f.subject, c), body: text, status: r.status, error: "", campaign_id: camp.id } as never);
         ok++;
       } catch (e) {
         await add("emails", { contact_id: c.id, to_email: c.email, subject: fill(f.subject, c), body: text, status: "failed", error: (e as Error).message, campaign_id: camp.id });
@@ -157,7 +158,7 @@ export default function EmailPage() {
           <li key={c.id} className="flex items-center gap-4 px-5 py-4">
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-iris-t text-iris"><Icon name="mail" className="size-5" /></span>
             <div className="min-w-0 flex-1"><div className="truncate font-semibold text-ink">{c.name}</div><div className="truncate text-sm text-muted">{c.subject}</div></div>
-            <div className="hidden text-right text-sm sm:block"><div className="font-semibold text-ink">{c.sent_count} sent{c.failed_count ? <span className="text-rose"> · {c.failed_count} failed</span> : null}</div><div className="text-muted">{c.sent_at ? timeAgo(c.sent_at) : "Draft"}</div></div>
+            <div className="hidden text-right text-sm sm:block"><div className="font-semibold text-ink">{c.sent_count} sent{c.failed_count ? <span className="text-rose"> · {c.failed_count} failed</span> : null}</div><div className="text-muted">{(() => { const m = data.emails.filter((e) => e.campaign_id === c.id && e.status === "sent"); const o = m.filter((e) => e.opened_at || e.clicked_at).length, k = m.filter((e) => e.clicked_at).length; return m.length ? `${Math.round((o / m.length) * 100)}% opened · ${Math.round((k / m.length) * 100)}% clicked` : c.sent_at ? timeAgo(c.sent_at) : "Draft"; })()}</div></div>
             <button onClick={() => setDel(c)} className="text-[#b3bdd2] hover:text-rose" aria-label="Delete campaign"><Icon name="trash" className="size-[18px]" /></button>
           </li>))}</ul></Card>
       ))}
@@ -181,6 +182,7 @@ export default function EmailPage() {
           return (
             <li key={m.id} className="flex items-center gap-4 px-5 py-3.5">
               <div className="min-w-0 flex-1"><div className="truncate font-semibold text-ink">{m.subject}</div><div className="truncate text-sm text-muted">To {c?.name ?? m.to_email}{m.error ? ` · ${m.error}` : ""}</div></div>
+              {m.clicked_at ? <Badge tone="iris">Clicked</Badge> : m.opened_at ? <Badge tone="teal">Opened</Badge> : null}
               <Badge tone={m.status === "sent" ? "green" : m.status === "demo" ? "sun" : "rose"}>{m.status === "demo" ? "Demo" : m.status === "sent" ? "Sent" : "Failed"}</Badge>
               <span className="hidden w-24 text-right text-[13px] text-muted sm:block">{timeAgo(m.created_at)}</span>
             </li>);

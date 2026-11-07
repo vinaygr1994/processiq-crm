@@ -10,6 +10,7 @@ import { SOURCES } from "@/lib/stages";
 import { useStages } from "@/lib/useStages";
 import type { Cond, Step, Trigger, TriggerType } from "@/lib/engine/types";
 import type { Workflow } from "@/lib/types";
+import { isJourney } from "@/lib/journeys";
 
 export default function WorkflowPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,7 @@ export default function WorkflowPage() {
 
   const touch = <T,>(set: (v: T) => void) => (v: T) => { set(v); setDirty(true); };
   if (!ready) return null;
+  if (saved && isJourney(saved)) return <Card><p>This is a journey. <Link href={`/journeys/${saved.id}`} className="font-semibold text-teal-d hover:underline">Open it in the Journey Builder</Link></p></Card>;
   if (!saved) return <Card><p>That workflow doesn't exist. <Link href="/automations" className="font-semibold text-teal-d hover:underline">Back to workflows</Link></p></Card>;
 
   const runs = data.workflow_runs.filter((r) => r.workflow_id === saved.id);

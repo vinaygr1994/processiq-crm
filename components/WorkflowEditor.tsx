@@ -17,18 +17,23 @@ export const TRIGGERS: { id: TriggerType; label: string }[] = [
   { id: "visit_done", label: "A visit result is saved" },
   { id: "visit_no_show", label: "A visit is marked no-show" },
   { id: "quote_sent", label: "A quote is sent" },
+  { id: "contact_created", label: "A new contact is added" },
+  { id: "tag_added", label: "A contact gets a tag" },
+  { id: "audience", label: "Audience (one-time send)" },
 ];
 export const triggerText = (t: Trigger, name: (id: string) => string = (id) => STAGES.find((s) => s.id === id)?.label ?? id) => {
   const base = TRIGGERS.find((x) => x.id === t.type)?.label ?? t.type;
   if (t.type === "stage_changed") return `${base}: ${name(t.stage ?? "")}`;
   if (t.type === "lead_created" && t.source) return `${base} from ${t.source}`;
+  if (t.type === "tag_added") return `${base}: ${t.tag || "(choose a tag)"}`;
+  if (t.type === "audience") return t.tag ? `Audience: tagged ${t.tag}` : "Audience: everyone with an email";
   return base;
 };
 
 const FIELDS: { id: CondField; label: string }[] = [
   { id: "deal.stage", label: "Job stage" }, { id: "deal.source", label: "Lead source" }, { id: "deal.project", label: "Project type" }, { id: "deal.value", label: "Job value" },
   { id: "deal.rep", label: "Rep" }, { id: "deal.budget", label: "Budget" }, { id: "contact.email", label: "Email" }, { id: "contact.phone", label: "Phone" },
-  { id: "contact.tags", label: "Tags" }, { id: "visit.status", label: "Visit status" }, { id: "visit.priority", label: "Visit priority" },
+  { id: "contact.tags", label: "Tags" }, { id: "contact.company", label: "Company" }, { id: "contact.source", label: "Contact source" }, { id: "contact.unsubscribed", label: "Unsubscribed (true/false)" }, { id: "visit.status", label: "Visit status" }, { id: "visit.priority", label: "Visit priority" },
 ];
 const OPS: { id: CondOp; label: string }[] = [
   { id: "is", label: "is" }, { id: "is_not", label: "is not" }, { id: "contains", label: "contains" }, { id: "gt", label: "is more than" }, { id: "lt", label: "is less than" }, { id: "empty", label: "is empty" }, { id: "not_empty", label: "is not empty" },
@@ -74,7 +79,7 @@ function Tags({ onPick }: { onPick: (t: string) => void }) {
   );
 }
 
-function StepBody({ step, set }: { step: Step; set: (s: Step) => void }) {
+export function StepBody({ step, set }: { step: Step; set: (s: Step) => void }) {
   const { stages: STAGES } = useStages();
   const num = "field !w-20 !py-2";
   if (step.type === "email") return (

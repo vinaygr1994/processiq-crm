@@ -1,4 +1,4 @@
-import { isDemo } from "./config";
+import { isDemo, missingColumn } from "./config";
 import { supabase } from "./supabase";
 import { seedRows } from "./seed";
 import type { Rows, TableName, Tables } from "./types";
@@ -80,9 +80,15 @@ const remoteBackend: Backend = {
     return Object.fromEntries(entries) as unknown as Rows;
   },
   async insert(t, row) {
-    const { data, error } = await supabase().from(t).insert(row as never).select().single();
-    if (error) throw new Error(error.message);
-    return data as Tables[typeof t];
+    let r: Record<string, unknown> = { ...row };
+    for (let i = 0; i < 6; i++) {
+      const { data, error } = await supabase().from(t).insert(r as never).select().single();
+      if (!error) return data as Tables[typeof t];
+      const col = missingColumn(error.message);
+      if (!col || !(col in r)) throw new Error(error.message);
+      r = { ...r }; delete r[col];
+    }
+    throw new Error("Couldn't save");
   },
   async update(t, id, patch) {
     const { error } = await supabase().from(t).update(patch as never).eq("id", id);

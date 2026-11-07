@@ -17,6 +17,7 @@ const NAV = [
   { href: "/pipeline", label: "Jobs", icon: "pipeline" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
   { href: "/automations", label: "Workflows", icon: "bolt" },
+  { href: "/journeys", label: "Journeys", icon: "send" },
   { href: "/emails", label: "Email", icon: "mail" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
@@ -80,7 +81,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <QuickAdd onPick={setQuick} />
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
+      <main className={`mx-auto px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10 ${/^\/journeys\/./.test(path ?? "") ? "max-w-none" : "max-w-6xl"}`}>
         {isDemo && (
           <div className="mb-6 flex items-start gap-3 rounded-2xl border border-sun/40 bg-sun-t px-4 py-3 text-[14px] text-[#7a4700]">
             <Icon name="info" className="mt-0.5 size-5 shrink-0" />

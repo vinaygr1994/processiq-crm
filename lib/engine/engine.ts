@@ -2,7 +2,8 @@ import type { AutoLog, Contact, Deal, Settings, Tables, Task, Visit, Workflow, W
 import { mergeVars, render } from "./merge";
 import { nextTimeOfDay } from "./tz";
 import type { Cond, Step } from "./types";
-import { uid } from "./types";
+import { branches, uid } from "./types";
+import { isDesign, parseDesign, plainOf, emailVars, type Design } from "../emailDesign";
 
 /** Minimal storage the engine needs. Implemented for localStorage (demo) and Supabase (live / server). */
 export interface Db {
@@ -15,7 +16,7 @@ export interface Db {
 export type SendResult = "sent" | "demo" | "failed" | "skipped";
 export interface Port {
   now(): number;
-  email(o: { to: string; subject: string; body: string; contactId?: string; marketing?: boolean }): Promise<{ status: SendResult; error?: string }>;
+  email(o: { to: string; subject: string; body: string; contactId?: string; marketing?: boolean; design?: Design; vars?: Record<string, string>; trackId?: string }): Promise<{ status: SendResult; error?: string }>;
   sms(o: { to: string; body: string; contactId?: string }): Promise<{ status: SendResult; error?: string }>;
 }
 
@@ -30,8 +31,9 @@ export function stepAt(steps: Step[], pos: number[]): Step | null {
     const s = list[pos[i]];
     if (!s) return null;
     if (i + 1 >= pos.length) return s;
-    if (s.type !== "if") return null;
-    list = pos[i + 1] === 0 ? s.then : s.else;
+    const br = branches(s);
+    if (!br || !br[pos[i + 1]]) return null;
+    list = br[pos[i + 1]];
   }
   return null;
 }
@@ -39,8 +41,9 @@ function listAt(steps: Step[], pos: number[]): Step[] {
   let list = steps;
   for (let i = 0; i + 1 < pos.length; i += 2) {
     const s = list[pos[i]];
-    if (!s || s.type !== "if") return [];
-    list = pos[i + 1] === 0 ? s.then : s.else;
+    const br = s ? branches(s) : null;
+    if (!br || !br[pos[i + 1]]) return [];
+    list = br[pos[i + 1]];
   }
   return list;
 }
@@ -73,6 +76,9 @@ export function evalCond(c: Cond, deal?: Deal, contact?: Contact, visit?: Visit)
   }
 }
 
+/** Stable 0-99 bucket per run and step, so a person always gets the same A/B path. */
+export function bucket(key: string) { let h = 2166136261; for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) % 100; }
+
 export interface Summary { enrolled: number; steps: number; finished: number }
 
 /** One pass: notice new triggers, then run every run that is due. Safe to call as often as you like. */
@@ -85,20 +91,22 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
   const settings = settingsList[0] as Settings | undefined;
   const active = workflows.filter((w) => w.active);
   if (!active.length) return sum;
+  const needsEmails = active.some((w) => JSON.stringify(w.steps).includes('"engage"'));
+  const emails = needsEmails ? await db.list("emails") : [];
   const byDeal = (id: string | null) => deals.find((d) => d.id === id);
   const byContact = (id: string | null) => contacts.find((c) => c.id === id);
   const byVisit = (id: string | null) => visits.find((v) => v.id === id);
 
   /* ---- 1. Enrol: look for things that just happened ---- */
   const have = new Set(runs.map((r) => `${r.workflow_id}|${r.trigger_key}`));
-  async function enrol(w: Workflow, key: string, deal: Deal | null, visit: Visit | null) {
+  async function enrol(w: Workflow, key: string, deal: Deal | null, visit: Visit | null, contact: Contact | null = null) {
     if (have.has(`${w.id}|${key}`)) return;
     have.add(`${w.id}|${key}`);
     if (deal && !visit) {
       // A newer run for the same job replaces an older one (e.g. a re-sent quote).
       for (const r of runs) if (r.workflow_id === w.id && r.deal_id === deal.id && r.status === "active" && !r.visit_id) { await db.update("workflow_runs", r.id, { status: "stopped", note: "Replaced by a newer run" }); r.status = "stopped"; }
     }
-    const run = await db.insert("workflow_runs", { workflow_id: w.id, deal_id: deal?.id ?? null, contact_id: deal?.contact_id ?? visit?.contact_id ?? null, visit_id: visit?.id ?? null, trigger_key: key, pos: [0], status: "active", next_run_at: iso(now), locked_until: null, note: "", created_at: iso(now) } as never);
+    const run = await db.insert("workflow_runs", { workflow_id: w.id, deal_id: deal?.id ?? null, contact_id: contact?.id ?? deal?.contact_id ?? visit?.contact_id ?? null, visit_id: visit?.id ?? null, trigger_key: key, pos: [0], status: "active", next_run_at: iso(now), locked_until: null, note: "", created_at: iso(now) } as never);
     runs.push(run);
     sum.enrolled++;
   }
@@ -110,6 +118,10 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     if (t.type === "quote_sent") for (const d of deals) if (d.stage === "quoted" && d.quote_sent_at && new Date(d.quote_sent_at).getTime() >= since) await enrol(w, `quote:${d.id}:${d.quote_sent_at}`, d, null);
     if (t.type === "visit_booked") for (const v of visits) if (new Date(v.created_at).getTime() >= since && v.status === "scheduled") await enrol(w, `visit:${v.id}`, byDeal(v.deal_id) ?? null, v);
     if (t.type === "visit_done") for (const v of visits) if (v.status === "done" && new Date(v.starts_at).getTime() >= since) await enrol(w, `vdone:${v.id}`, byDeal(v.deal_id) ?? null, v);
+    if (t.type === "contact_created") for (const c of contacts) if (new Date(c.created_at).getTime() >= since && (!t.source || c.source === t.source)) await enrol(w, `contact:${c.id}`, null, null, c);
+    if (t.type === "tag_added") for (const c of contacts) if (t.tag && c.tags.includes(t.tag)) await enrol(w, `tag:${c.id}:${t.tag}`, null, null, c);
+    // A one-time send to an audience: everyone who matches when the journey is switched on, plus anyone who matches later.
+    if (t.type === "audience") for (const c of contacts) if (c.email && !c.unsubscribed && (!t.tag || c.tags.includes(t.tag))) await enrol(w, `aud:${c.id}`, null, null, c);
     if (t.type === "visit_no_show") for (const v of visits) if (v.status === "no_show" && new Date(v.starts_at).getTime() >= since) await enrol(w, `vnoshow:${v.id}`, byDeal(v.deal_id) ?? null, v);
   }
 
@@ -130,7 +142,7 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     for (let guard = 0; guard < 60; guard++) {
       const deal = byDeal(run.deal_id) as Deal | undefined, contact = byContact(deal?.contact_id ?? run.contact_id) as Contact | undefined, visit = byVisit(run.visit_id) as Visit | undefined;
       if (run.deal_id && !deal) { status = "stopped"; note = "The job was deleted"; break; }
-      if (wf.exit.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = "Stopped: exit condition met"; break; }
+      if (wf.exit.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = "Reached the goal"; break; }
       const step = stepAt(wf.steps, pos);
       if (!step) { status = "done"; break; }
       const vars = mergeVars(deal, contact, visit, settings);
@@ -155,23 +167,34 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
         }
         pos = next; nextAt = dueAt; break;
       }
-      if (step.type === "if") {
-        const yes = evalCond(step.cond, deal, contact, visit);
-        const branch = yes ? step.then : step.else;
-        pos = branch.length ? [...pos, yes ? 0 : 1, 0] : next;
+      if (step.type === "if" || step.type === "split" || step.type === "ab" || step.type === "engage") {
+        let k = 0;
+        if (step.type === "if") k = evalCond(step.cond, deal, contact, visit) ? 0 : 1;
+        else if (step.type === "split") { k = step.paths.findIndex((p) => !p.cond || evalCond(p.cond, deal, contact, visit)); if (k < 0) k = step.paths.length; }
+        else if (step.type === "ab") { const b = bucket(run.id + step.id); let acc = 0; k = step.paths.length - 1; for (let i = 0; i < step.paths.length; i++) { acc += step.paths[i].pct ?? 0; if (b < acc) { k = i; break; } } }
+        else {
+          const sent = emails.filter((m) => m.run_id === run.id && m.step_id === step.ref);
+          const hit = sent.some((m) => (step.event === "click" ? m.clicked_at : m.opened_at || m.clicked_at));
+          k = hit ? 0 : 1;
+        }
+        const branch = branches(step)![k] ?? [];
+        pos = branch.length ? [...pos, k, 0] : next;
         continue;
       }
       try {
         if (step.type === "email") {
           const subject = render(step.subject, vars);
-          let body = render(step.body, vars);
+          const design = isDesign(step.body) ? parseDesign(step.body) : null;
+          const allVars = { ...emailVars(contact ?? null, settings), ...vars };
+          let body = design ? plainOf(step.body, allVars) : render(step.body, vars);
           const sig = settings?.signature?.trim();
-          if (sig) body += `\n\n${sig}`;
+          if (sig && !design) body += `\n\n${sig}`;
           if (!contact?.email) await log(deal ?? null, "Auto", `Email "${subject}" skipped: no email address on file`, "warn");
           else if (step.marketing && contact.unsubscribed) await log(deal ?? null, "Auto", `Email "${subject}" skipped: ${contact.name} has unsubscribed`, "warn");
           else {
-            const r = await port.email({ to: contact.email, subject, body, contactId: contact.id, marketing: step.marketing });
-            await db.insert("emails", { contact_id: contact.id, to_email: contact.email, subject, body, status: r.status === "failed" ? "failed" : r.status === "demo" ? "demo" : "sent", error: r.error ?? "", campaign_id: null, created_at: iso(port.now()) } as never);
+            const trackId = crypto.randomUUID();
+            const r = await port.email({ to: contact.email, subject, body, contactId: contact.id, marketing: step.marketing, design: design ?? undefined, vars: allVars, trackId });
+            await db.insert("emails", { id: trackId, contact_id: contact.id, to_email: contact.email, subject, body, status: r.status === "failed" ? "failed" : r.status === "demo" ? "demo" : "sent", error: r.error ?? "", campaign_id: null, run_id: run.id, step_id: step.id, created_at: iso(port.now()) } as never);
             await log(deal ?? null, "Auto", r.status === "failed" ? `Email "${subject}" failed: ${r.error ?? "unknown error"}` : `Email "${subject}" sent to ${contact.name}`, r.status === "failed" ? "warn" : "info");
           }
         } else if (step.type === "sms") {

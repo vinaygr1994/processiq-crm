@@ -6,7 +6,7 @@ import { sanitizeDesign } from "@/lib/emailDesign";
 
 export const dynamic = "force-dynamic";
 
-interface Body { to?: string; subject?: string; body?: string; contactId?: string; marketing?: boolean; design?: unknown; test?: boolean }
+interface Body { to?: string; subject?: string; body?: string; contactId?: string; marketing?: boolean; design?: unknown; test?: boolean; trackId?: string }
 
 export async function POST(req: Request) {
   const p = (await req.json().catch(() => ({}))) as Body;
@@ -21,6 +21,6 @@ export async function POST(req: Request) {
   const a = await authed(req);
   if (!a) return json({ error: "Please log in again." }, 401);
   if (p.test && to.toLowerCase() !== (a.user.email ?? "").toLowerCase()) return json({ error: "Test emails can only be sent to your own login email." }, 400);
-  const r = await sendMail({ sb: a.sb, to, subject, body: text, design: design ?? undefined, test: !!p.test, contactId: p.contactId, marketing: p.marketing && !p.test, baseUrl: appUrl(req) });
+  const r = await sendMail({ sb: a.sb, to, subject, body: text, design: design ?? undefined, test: !!p.test, contactId: p.contactId, marketing: p.marketing && !p.test, baseUrl: appUrl(req), trackId: p.trackId && /^[0-9a-f-]{36}$/i.test(p.trackId) ? p.trackId : undefined });
   return r.ok ? json({ status: "sent" }) : json({ error: r.error }, r.code);
 }

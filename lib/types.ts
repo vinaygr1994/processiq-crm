@@ -97,6 +97,11 @@ export interface EmailLog {
   status: "sent" | "failed" | "demo";
   error: string;
   campaign_id: string | null;
+  /** Tracking (needs migration 006). */
+  opened_at?: string | null;
+  clicked_at?: string | null;
+  run_id?: string | null;
+  step_id?: string | null;
   created_at: string;
 }
 export interface Settings {
