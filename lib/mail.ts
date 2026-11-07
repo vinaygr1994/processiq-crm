@@ -41,7 +41,7 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
   let plain = o.body;
   let html: string;
   if (o.design) {
-    const r = renderDesign(o.design, emailVars(contact ?? { name: "Sarah Collins", company: "Collins Family" }, s as never), { business: s?.business_name, address: s?.address, unsubscribeUrl: unsubUrl || undefined });
+    const r = renderDesign(o.design, emailVars(contact ?? { name: "Sarah Collins", company: "Collins Family" }, s as never), { business: s?.business_name, address: s?.address, unsubscribeUrl: unsubUrl || undefined, assetBase: o.baseUrl });
     html = r.html; plain = r.text;
   } else {
     html = `<div style="font:15px/1.6 -apple-system,Segoe UI,Arial,sans-serif;color:#222">${esc(o.body).replace(/\n/g, "<br>")}</div>`;
