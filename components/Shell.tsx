@@ -18,6 +18,12 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: str
     { href: "/pipeline", label: "Jobs", icon: "pipeline" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
   ] },
+  { title: "Bookings", items: [
+    { href: "/bookings", label: "Schedule", icon: "calendar" },
+    { href: "/bookings/services", label: "Services and classes", icon: "clock" },
+    { href: "/bookings/memberships", label: "Memberships", icon: "users" },
+    { href: "/bookings/settings", label: "Booking page", icon: "home" },
+  ] },
   { title: "Marketing", items: [
     { href: "/marketing", label: "Overview", icon: "chart" },
     { href: "/marketing/send", label: "Send email", icon: "send" },
@@ -64,7 +70,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const { ready, toasts, userEmail } = useCrm();
   const [quick, setQuick] = useState<Quick | null>(null);
-  const active = (h: string) => (h === "/" || h === "/marketing" ? path === h : path.startsWith(h));
+  const active = (h: string) => (h === "/" || h === "/marketing" || h === "/bookings" ? path === h : path.startsWith(h));
   const [more, setMore] = useState(false);
 
   return (
@@ -72,14 +78,14 @@ export function Shell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-line bg-white px-4 py-6 lg:flex">
         <Link href="/" className="mb-6 px-2"><Logo /></Link>
         <div className="mb-5 px-1"><QuickAdd block onPick={setQuick} /></div>
-        <nav className="-mx-1 flex flex-1 flex-col gap-4 overflow-y-auto px-1" aria-label="Main">
+        <nav className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pb-3" aria-label="Main">
           {SECTIONS.map((s) => (
             <div key={s.title}>
               <div className="mb-1 px-3.5 text-[12px] font-semibold text-muted">{s.title}</div>
               <div className="flex flex-col gap-0.5">
                 {s.items.map((n) => (
                   <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
-                    className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-semibold transition ${active(n.href) ? "bg-teal-t text-teal-d" : "text-body hover:bg-cloud hover:text-ink"}`}>
+                    className={`flex items-center gap-3 rounded-xl px-3.5 py-2 text-[14.5px] font-semibold transition ${active(n.href) ? "bg-teal-t text-teal-d" : "text-body hover:bg-cloud hover:text-ink"}`}>
                     <Icon name={n.icon} className="size-[19px]" /> {n.label}
                   </Link>
                 ))}

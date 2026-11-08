@@ -233,7 +233,7 @@ export default function JourneyPage() {
         <p className="-mt-2 text-sm text-muted">Who enters this journey, and when.</p>
         <Field label="People enter when">
           <select className="field" value={trigger.type} onChange={(e) => setTrig({ type: e.target.value as Trigger["type"] })}>
-            {["Contacts", "Deals", "Appointments"].map((g) => <optgroup key={g} label={g}>{ENTRY.filter((x) => x.group === g).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</optgroup>)}
+            {["Contacts", "Bookings", "Deals", "Sales visits"].map((g) => <optgroup key={g} label={g}>{ENTRY.filter((x) => x.group === g).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</optgroup>)}
           </select>
         </Field>
         <p className="text-[13px] text-muted">{ENTRY.find((x) => x.id === trigger.type)?.hint}</p>
@@ -241,6 +241,13 @@ export default function JourneyPage() {
           <Field label={trigger.type === "audience" ? "Only contacts with this tag (optional)" : "Tag"}>
             <input className="field" list="journey-tags" value={trigger.tag ?? ""} onChange={(e) => setTrig({ ...trigger, tag: e.target.value.toLowerCase().trim() })} placeholder={trigger.type === "audience" ? "Leave empty for everyone" : "e.g. newsletter"} />
             <datalist id="journey-tags">{tags.map((t) => <option key={t} value={t} />)}</datalist>
+          </Field>
+        )}
+        {trigger.type.startsWith("booking_") && (
+          <Field label="Service or class">
+            <select className="field" value={trigger.service ?? ""} onChange={(e) => setTrig({ ...trigger, service: e.target.value || undefined })}>
+              <option value="">Any</option>{data.services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
           </Field>
         )}
         {trigger.type === "form_submitted" && (

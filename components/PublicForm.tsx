@@ -81,7 +81,7 @@ export function PublicForm({ cfg, business, onSubmit, preview = false, embed = f
         <div className={`mx-auto max-w-6xl px-5 py-10 @xl:px-8 @xl:py-14 ${side ? "grid items-start gap-10 @4xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]" : ""}`}>
           <div>
             {business && <div className="mb-6 text-sm font-semibold text-white/80">{business}</div>}
-            <h1 className="text-[32px] font-semibold leading-[1.1] text-white @xl:text-[44px]">{cfg.page.headline || cfg.title}</h1>
+            <h1 className="text-[32px] font-semibold leading-[1.1] @xl:text-[44px]" style={{ color: "#fff" }}>{cfg.page.headline || cfg.title}</h1>
             {cfg.page.subtext && <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-white/85">{cfg.page.subtext}</p>}
             {bullets.length > 0 && <ul className="mt-6 space-y-2.5">{bullets.map((b) => <li key={b} className="flex items-start gap-2.5 text-[16px]"><span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-white/20 text-[12px]">✓</span>{b}</li>)}</ul>}
             {cfg.page.image && <img src={cfg.page.image} alt="" className={`mt-8 w-full rounded-2xl object-cover shadow-2xl ${side ? "aspect-[3/2]" : "aspect-[21/9]"}`} />}

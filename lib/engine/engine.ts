@@ -100,6 +100,7 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
   const needsEmails = segTriggers || active.some((w) => JSON.stringify(w.steps).includes('"engage"'));
   const emails = needsEmails ? await db.list("emails") : [];
   const segments = segTriggers ? await db.list("segments").catch(() => []) : [];
+  const bookings = active.some((w) => w.trigger.type.startsWith("booking_")) ? await db.list("bookings").catch(() => []) : [];
   const submissions = active.some((w) => w.trigger.type === "form_submitted") ? await db.list("form_submissions").catch(() => []) : [];
   const byDeal = (id: string | null) => deals.find((d) => d.id === id);
   const byContact = (id: string | null) => contacts.find((c) => c.id === id);
@@ -130,6 +131,14 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     if (t.type === "tag_added") for (const c of contacts) if (t.tag && c.tags.includes(t.tag)) await enrol(w, `tag:${c.id}:${t.tag}`, null, null, c);
     // A one-time send to an audience: everyone who matches when the journey is switched on, plus anyone who matches later.
     if (t.type === "audience") for (const c of contacts) if (c.email && !c.unsubscribed && (!t.tag || c.tags.includes(t.tag))) await enrol(w, `aud:${c.id}`, null, null, c);
+    if (t.type === "booking_made" || t.type === "booking_checked_in" || t.type === "booking_no_show") {
+      const want = t.type === "booking_made" ? null : t.type === "booking_checked_in" ? "checked_in" : "no_show";
+      for (const b of bookings) {
+        const c = byContact(b.contact_id);
+        if (!c || (t.service && b.service_id !== t.service) || new Date(b.created_at).getTime() < since) continue;
+        if (want ? b.status === want : b.status !== "cancelled") await enrol(w, `${t.type}:${b.id}`, null, null, c);
+      }
+    }
     if (t.type === "form_submitted") for (const s of submissions) {
       const c = byContact(s.contact_id);
       if (c && (!t.form || s.form_id === t.form) && new Date(s.created_at).getTime() >= since) await enrol(w, `form:${s.id}`, null, null, c);

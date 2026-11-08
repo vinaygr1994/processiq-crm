@@ -44,9 +44,12 @@ export const ENTRY: { id: Trigger["type"]; label: string; group: string; hint: s
   { id: "lead_created", label: "New lead or deal", group: "Deals", hint: "A new lead arrives from any source." },
   { id: "stage_changed", label: "Deal moves to a stage", group: "Deals", hint: "For example Won or Completed." },
   { id: "quote_sent", label: "Quote sent", group: "Deals", hint: "When you send a quote." },
-  { id: "visit_booked", label: "Appointment booked", group: "Appointments", hint: "A visit, class or meeting is booked." },
-  { id: "visit_done", label: "Appointment completed", group: "Appointments", hint: "A result is logged." },
-  { id: "visit_no_show", label: "Appointment no-show", group: "Appointments", hint: "Marked as a no-show." },
+  { id: "booking_made", label: "Class or appointment booked", group: "Bookings", hint: "Someone books online or you book them in." },
+  { id: "booking_checked_in", label: "Client checked in", group: "Bookings", hint: "After you check them in to a class or appointment." },
+  { id: "booking_no_show", label: "Client didn't show", group: "Bookings", hint: "Marked as a no-show." },
+  { id: "visit_booked", label: "Sales visit booked", group: "Sales visits", hint: "An on-site visit for a deal is booked." },
+  { id: "visit_done", label: "Sales visit completed", group: "Sales visits", hint: "A result is logged." },
+  { id: "visit_no_show", label: "Sales visit no-show", group: "Sales visits", hint: "Marked as a no-show." },
 ];
 
 /* ---------- Tree editing ---------- */

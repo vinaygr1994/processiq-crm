@@ -125,8 +125,18 @@ export interface Settings {
   intake_key: string;
   stage_labels: Record<string, string>;
   custom_fields: CustomField[];
+  /** Online booking page (migration 010). */
+  booking?: Partial<BookingSettings>;
   created_at: string;
 }
+export interface Hours { day: number; open: string; close: string }
+export interface BookingSettings { enabled: boolean; slug: string; intro: string; hours: Hours[]; lead_hours: number; interval: number; window_days: number }
+export interface ClassSlot { day: number; time: string; staff: string }
+export interface Service { id: string; name: string; kind: "appointment" | "class"; duration: number; price: number; capacity: number; color: string; description: string; staff: string[]; schedule: ClassSlot[]; active: boolean; created_at: string }
+export type BookingStatus = "booked" | "checked_in" | "cancelled" | "no_show";
+export interface Booking { id: string; service_id: string | null; contact_id: string | null; staff: string; starts_at: string; ends_at: string; status: BookingStatus; source: string; membership_id: string | null; note: string; created_at: string }
+export interface Plan { id: string; name: string; kind: "unlimited" | "pack"; price: number; sessions: number; months: number; active: boolean; created_at: string }
+export interface Membership { id: string; contact_id: string; plan_id: string | null; status: "active" | "expired" | "cancelled"; credits: number | null; starts_on: string; ends_on: string | null; created_at: string }
 
 export interface CustomField { id: string; label: string; on: "deal" | "contact"; type: "text" | "number" | "date" | "select"; options?: string[] }
 
@@ -181,6 +191,10 @@ export interface Tables {
   segments: Segment;
   forms: FormDef;
   form_submissions: FormSubmission;
+  services: Service;
+  bookings: Booking;
+  plans: Plan;
+  memberships: Membership;
 }
 export type TableName = keyof Tables;
 export type Rows = { [K in TableName]: Tables[K][] };

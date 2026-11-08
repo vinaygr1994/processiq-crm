@@ -4,6 +4,8 @@ import { STARTERS } from "./engine/starters";
 const M = 60000, H = 3600000, D = 86400000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const ahead = (ms: number) => new Date(Date.now() + ms).toISOString();
+/** A local clock time some days from now, e.g. at(1, 10) = tomorrow 10:00. */
+const at = (days: number, hour: number, mins = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, mins, 0, 0); return d.toISOString(); };
 
 export function seedRows(): Rows {
   const c = (id: string, name: string, email: string, phone: string, source: string, age: number) =>
@@ -63,6 +65,23 @@ export function seedRows(): Rows {
     segments: [],
     forms: [],
     form_submissions: [],
+    services: [
+      { id: "sv1", name: "Free consultation", kind: "appointment", duration: 30, price: 0, capacity: 1, color: "#0b8a8a", description: "A friendly first chat about your goals.", staff: [], schedule: [], active: true, created_at: ago(20 * D) },
+      { id: "sv2", name: "Personal training", kind: "appointment", duration: 60, price: 80, capacity: 1, color: "#5a5bef", description: "One-to-one session with a coach.", staff: [], schedule: [], active: true, created_at: ago(20 * D) },
+      { id: "sv3", name: "Strength class", kind: "class", duration: 50, price: 25, capacity: 12, color: "#ec5b7f", description: "Small-group strength training. All levels.", staff: [], schedule: [{ day: 1, time: "18:00", staff: "" }, { day: 3, time: "18:00", staff: "" }], active: true, created_at: ago(20 * D) },
+      { id: "sv4", name: "Mobility", kind: "class", duration: 45, price: 20, capacity: 10, color: "#ffad4d", description: "Stretch, breathe and move better.", staff: [], schedule: [{ day: 2, time: "07:00", staff: "" }, { day: 4, time: "07:00", staff: "" }, { day: 6, time: "09:00", staff: "" }], active: true, created_at: ago(20 * D) },
+    ],
+    bookings: [
+      { id: "bk1", service_id: "sv2", contact_id: "c2", staff: "", starts_at: at(1, 10), ends_at: at(1, 11), status: "booked", source: "online", membership_id: null, note: "", created_at: ago(2 * H) },
+      { id: "bk2", service_id: "sv1", contact_id: "c3", staff: "", starts_at: at(2, 14), ends_at: at(2, 14, 30), status: "booked", source: "staff", membership_id: null, note: "", created_at: ago(5 * H) },
+    ],
+    plans: [
+      { id: "pl1", name: "10-class pack", kind: "pack", price: 180, sessions: 10, months: 6, active: true, created_at: ago(30 * D) },
+      { id: "pl2", name: "Unlimited monthly", kind: "unlimited", price: 129, sessions: 0, months: 1, active: true, created_at: ago(30 * D) },
+    ],
+    memberships: [
+      { id: "ms1", contact_id: "c4", plan_id: "pl1", status: "active", credits: 7, starts_on: ago(12 * D).slice(0, 10), ends_on: ahead(170 * D).slice(0, 10), created_at: ago(12 * D) },
+    ],
     workflows: STARTERS.map((w) => ({ ...w, id: "wf-" + w.template_id, active: true, activated_at: new Date().toISOString(), created_at: new Date().toISOString() })),
     workflow_runs: [],
     settings: [

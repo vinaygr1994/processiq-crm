@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { AddTaskModal } from "@/components/forms";
 import { EmailComposer } from "@/components/EmailComposer";
+import { ContactBookings } from "@/components/ContactBookings";
 import { AiButton, Avatar, Badge, Button, Card, ConfirmModal, Empty } from "@/components/ui";
 import { useCrm } from "@/lib/store";
 import { useFlow } from "@/lib/flow";
@@ -156,6 +157,7 @@ export default function ContactPage() {
               ))}</ul>
             )}
           </Card>
+          <ContactBookings contactId={contact.id} />
           <Button variant="danger" size="sm" icon="trash" onClick={() => setModal("delete")}>Delete contact</Button>
         </div>
 
