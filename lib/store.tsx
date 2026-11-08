@@ -7,7 +7,7 @@ import { resetClock } from "./clock";
 import { supabase } from "./supabase";
 import type { NewRow, Rows, Settings, TableName, Tables } from "./types";
 
-const EMPTY: Rows = { contacts: [], deals: [], visits: [], autolog: [], tasks: [], activities: [], templates: [], campaigns: [], emails: [], settings: [], workflows: [], workflow_runs: [], segments: [] };
+const EMPTY: Rows = { contacts: [], deals: [], visits: [], autolog: [], tasks: [], activities: [], templates: [], campaigns: [], emails: [], settings: [], workflows: [], workflow_runs: [], segments: [], forms: [], form_submissions: [] };
 export interface Toast { id: number; text: string; tone: "ok" | "error" }
 
 interface Ctx {

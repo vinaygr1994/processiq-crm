@@ -163,6 +163,8 @@ export interface SegmentRule {
   value: string;
 }
 export interface Segment { id: string; name: string; match: "all" | "any"; rules: SegmentRule[]; created_at: string }
+export interface FormDef { id: string; name: string; slug: string; status: "draft" | "published"; config: unknown; created_at: string }
+export interface FormSubmission { id: string; form_id: string; contact_id: string | null; data: Record<string, string>; created_at: string }
 export interface Tables {
   workflows: Workflow;
   workflow_runs: WorkflowRun;
@@ -177,6 +179,8 @@ export interface Tables {
   emails: EmailLog;
   settings: Settings;
   segments: Segment;
+  forms: FormDef;
+  form_submissions: FormSubmission;
 }
 export type TableName = keyof Tables;
 export type Rows = { [K in TableName]: Tables[K][] };

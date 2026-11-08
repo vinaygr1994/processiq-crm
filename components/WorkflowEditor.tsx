@@ -21,6 +21,7 @@ export const TRIGGERS: { id: TriggerType; label: string }[] = [
   { id: "tag_added", label: "A contact gets a tag" },
   { id: "audience", label: "Audience (one-time send)" },
   { id: "segment", label: "A contact joins a smart segment" },
+  { id: "form_submitted", label: "A form is submitted" },
 ];
 export const triggerText = (t: Trigger, name: (id: string) => string = (id) => STAGES.find((s) => s.id === id)?.label ?? id) => {
   const base = TRIGGERS.find((x) => x.id === t.type)?.label ?? t.type;

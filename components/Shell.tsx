@@ -23,6 +23,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: str
     { href: "/marketing/send", label: "Send email", icon: "send" },
     { href: "/emails", label: "Emails and templates", icon: "mail" },
     { href: "/marketing/lists", label: "Lists", icon: "tag" },
+    { href: "/marketing/forms", label: "Forms and pages", icon: "note" },
     { href: "/journeys", label: "Journeys", icon: "route" },
     { href: "/automations", label: "Workflows", icon: "bolt" },
   ] },

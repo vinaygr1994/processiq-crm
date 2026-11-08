@@ -100,6 +100,7 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
   const needsEmails = segTriggers || active.some((w) => JSON.stringify(w.steps).includes('"engage"'));
   const emails = needsEmails ? await db.list("emails") : [];
   const segments = segTriggers ? await db.list("segments").catch(() => []) : [];
+  const submissions = active.some((w) => w.trigger.type === "form_submitted") ? await db.list("form_submissions").catch(() => []) : [];
   const byDeal = (id: string | null) => deals.find((d) => d.id === id);
   const byContact = (id: string | null) => contacts.find((c) => c.id === id);
   const byVisit = (id: string | null) => visits.find((v) => v.id === id);
@@ -129,6 +130,10 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     if (t.type === "tag_added") for (const c of contacts) if (t.tag && c.tags.includes(t.tag)) await enrol(w, `tag:${c.id}:${t.tag}`, null, null, c);
     // A one-time send to an audience: everyone who matches when the journey is switched on, plus anyone who matches later.
     if (t.type === "audience") for (const c of contacts) if (c.email && !c.unsubscribed && (!t.tag || c.tags.includes(t.tag))) await enrol(w, `aud:${c.id}`, null, null, c);
+    if (t.type === "form_submitted") for (const s of submissions) {
+      const c = byContact(s.contact_id);
+      if (c && (!t.form || s.form_id === t.form) && new Date(s.created_at).getTime() >= since) await enrol(w, `form:${s.id}`, null, null, c);
+    }
     if (t.type === "segment") {
       const s = segments.find((g) => g.id === t.segment);
       if (s) { const x = segCtx(emails, deals, runs, now); for (const c of contacts) if (inSegment(c, s, x)) await enrol(w, `seg:${c.id}`, null, null, c); }

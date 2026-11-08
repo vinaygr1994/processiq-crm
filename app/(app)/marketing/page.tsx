@@ -34,7 +34,7 @@ export default function MarketingHome() {
     ["/marketing/send", "Send an email", "To one person, a list or everyone", "send"],
     ["/journeys", "Build a journey", "Automated multi-step emails and texts", "route"],
     ["/emails?tab=templates", "Design a template", "Drag-and-drop email builder", "mail"],
-    ["/marketing/lists", "Manage lists", "Group contacts for targeting", "tag"],
+    ["/marketing/forms", "Build a form", "Sign-ups and landing pages", "note"],
   ];
 
   return (

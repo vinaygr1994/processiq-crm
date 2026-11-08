@@ -243,6 +243,13 @@ export default function JourneyPage() {
             <datalist id="journey-tags">{tags.map((t) => <option key={t} value={t} />)}</datalist>
           </Field>
         )}
+        {trigger.type === "form_submitted" && (
+          <Field label="Form">
+            <select className="field" value={trigger.form ?? ""} onChange={(e) => setTrig({ ...trigger, form: e.target.value || undefined })}>
+              <option value="">Any form</option>{data.forms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </Field>
+        )}
         {trigger.type === "segment" && (
           <Field label="Smart segment">
             <select className="field" value={trigger.segment ?? ""} onChange={(e) => setTrig({ ...trigger, segment: e.target.value })}>
@@ -371,7 +378,7 @@ export default function JourneyPage() {
             <button type="button" onClick={() => setSel("entry")} className={`w-48 shrink-0 rounded-2xl border bg-ink p-3 text-left text-white shadow-sm ${sel === "entry" ? "ring-4 ring-teal/30" : ""}`}>
               <div className="text-[12px] font-semibold text-white/60">Entry source</div>
               <div className="mt-0.5 text-[13.5px] font-semibold">{ENTRY.find((x) => x.id === trigger.type)?.label}</div>
-              <div className="mt-1 text-[12px] text-white/70">{trigger.type === "segment" ? data.segments.find((s) => s.id === trigger.segment)?.name ?? "Choose a segment" : trigger.tag ? `Tag: ${trigger.tag}` : trigger.stage ? stageName(trigger.stage) : trigger.source ?? ""}</div>
+              <div className="mt-1 text-[12px] text-white/70">{trigger.type === "form_submitted" ? data.forms.find((f) => f.id === trigger.form)?.name ?? "Any form" : trigger.type === "segment" ? data.segments.find((s) => s.id === trigger.segment)?.name ?? "Choose a segment" : trigger.tag ? `Tag: ${trigger.tag}` : trigger.stage ? stageName(trigger.stage) : trigger.source ?? ""}</div>
             </button>
             <Lane list={steps} lp={[]} prefix={[]} />
             <button type="button" onClick={() => setSel("goal")} className={`w-40 shrink-0 rounded-2xl border border-line bg-white p-3 text-left shadow-sm ${sel === "goal" ? "ring-4 ring-teal/30" : ""}`}>
