@@ -14,6 +14,8 @@ const P: Record<string, string> = {
   x: "M6 6l12 12M18 6L6 18",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   send: "M22 2L11 13M22 2l-7 20-4-9-9-4z",
+  route: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 17h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16",
+  chart: "M4 20V10M10 20V4M16 20v-6M22 20H2",
   upload: "M12 16V4M7 9l5-5 5 5M4 20h16",
   phone: "M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z",
   note: "M5 4h11l3 3v13H5zM8 10h8M8 14h8M8 18h5",

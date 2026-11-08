@@ -35,7 +35,7 @@ export default function JourneysPage() {
         action={<Button icon="plus" onClick={() => setPicker(true)}>New journey</Button>} />
 
       {list.length === 0 ? (
-        <Card><Empty icon="send" title="Build your first journey" text="Start from a ready-made journey such as a welcome series or an A/B test, or start from a blank canvas." action={<Button icon="plus" onClick={() => setPicker(true)}>New journey</Button>} /></Card>
+        <Card><Empty icon="route" title="Build your first journey" text="Start from a ready-made journey such as a welcome series or an A/B test, or start from a blank canvas." action={<Button icon="plus" onClick={() => setPicker(true)}>New journey</Button>} /></Card>
       ) : (
         <Card className="!p-0 overflow-hidden">
           <div className="hidden grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_90px_40px] gap-3 border-b border-line px-5 py-3 text-[13px] font-semibold text-muted lg:grid">

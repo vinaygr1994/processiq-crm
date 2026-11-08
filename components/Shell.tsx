@@ -11,16 +11,24 @@ import { NewLeadModal } from "./flowModals";
 import { useCrm } from "@/lib/store";
 import { isDemo } from "@/lib/config";
 
-const NAV = [
-  { href: "/", label: "Today", icon: "today" },
-  { href: "/contacts", label: "Contacts", icon: "users" },
-  { href: "/pipeline", label: "Jobs", icon: "pipeline" },
-  { href: "/calendar", label: "Calendar", icon: "calendar" },
-  { href: "/automations", label: "Workflows", icon: "bolt" },
-  { href: "/journeys", label: "Journeys", icon: "send" },
-  { href: "/emails", label: "Email", icon: "mail" },
-  { href: "/settings", label: "Settings", icon: "settings" },
+const SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
+  { title: "CRM", items: [
+    { href: "/", label: "Today", icon: "today" },
+    { href: "/contacts", label: "Contacts", icon: "users" },
+    { href: "/pipeline", label: "Jobs", icon: "pipeline" },
+    { href: "/calendar", label: "Calendar", icon: "calendar" },
+  ] },
+  { title: "Marketing", items: [
+    { href: "/marketing", label: "Overview", icon: "chart" },
+    { href: "/marketing/send", label: "Send email", icon: "send" },
+    { href: "/emails", label: "Emails and templates", icon: "mail" },
+    { href: "/marketing/lists", label: "Lists", icon: "tag" },
+    { href: "/journeys", label: "Journeys", icon: "route" },
+    { href: "/automations", label: "Workflows", icon: "bolt" },
+  ] },
 ];
+const NAV = [...SECTIONS.flatMap((s) => s.items), { href: "/settings", label: "Settings", icon: "settings" }];
+const MOBILE = [NAV[0], NAV[1], NAV[2], { href: "/marketing", label: "Marketing", icon: "chart" }];
 
 type Quick = "lead" | "contact" | "task";
 function QuickAdd({ onPick, block = false }: { onPick: (k: Quick) => void; block?: boolean }) {
@@ -55,20 +63,32 @@ export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const { ready, toasts, userEmail } = useCrm();
   const [quick, setQuick] = useState<Quick | null>(null);
-  const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
+  const active = (h: string) => (h === "/" || h === "/marketing" ? path === h : path.startsWith(h));
+  const [more, setMore] = useState(false);
 
   return (
     <div className="min-h-dvh lg:pl-64">
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-line bg-white px-4 py-6 lg:flex">
         <Link href="/" className="mb-6 px-2"><Logo /></Link>
         <div className="mb-5 px-1"><QuickAdd block onPick={setQuick} /></div>
-        <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-2xl px-3.5 py-3 text-[15.5px] font-semibold transition ${active(n.href) ? "bg-teal-t text-teal-d" : "text-body hover:bg-cloud"}`}>
-              <Icon name={n.icon} /> {n.label}
-            </Link>
+        <nav className="-mx-1 flex flex-1 flex-col gap-4 overflow-y-auto px-1" aria-label="Main">
+          {SECTIONS.map((s) => (
+            <div key={s.title}>
+              <div className="mb-1 px-3.5 text-[12px] font-semibold text-muted">{s.title}</div>
+              <div className="flex flex-col gap-0.5">
+                {s.items.map((n) => (
+                  <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
+                    className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-semibold transition ${active(n.href) ? "bg-teal-t text-teal-d" : "text-body hover:bg-cloud hover:text-ink"}`}>
+                    <Icon name={n.icon} className="size-[19px]" /> {n.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
+          <Link href="/settings" aria-current={active("/settings") ? "page" : undefined}
+            className={`mt-auto flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-semibold transition ${active("/settings") ? "bg-teal-t text-teal-d" : "text-body hover:bg-cloud hover:text-ink"}`}>
+            <Icon name="settings" className="size-[19px]" /> Settings
+          </Link>
         </nav>
         <div className="rounded-2xl bg-cloud px-3.5 py-3 text-[13px] text-muted">
           <div className="truncate font-semibold text-ink">{userEmail || "Signed in"}</div>
@@ -91,14 +111,35 @@ export function Shell({ children }: { children: ReactNode }) {
         {ready ? children : <div className="grid place-items-center py-32 text-teal"><Spinner className="size-8" /></div>}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
-        {NAV.map((n) => (
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
+        {MOBILE.map((n) => (
           <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
             className={`flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-semibold ${active(n.href) ? "text-teal-d" : "text-muted"}`}>
             <Icon name={n.icon} className="size-6" /> {n.label}
           </Link>
         ))}
+        <button type="button" onClick={() => setMore(true)} aria-expanded={more} className="flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-semibold text-muted">
+          <Icon name="plus" className="size-6" /> More
+        </button>
       </nav>
+      {more && (
+        <div className="fixed inset-0 z-50 bg-ink/40 lg:hidden" onClick={() => setMore(false)}>
+          <div role="dialog" aria-label="All pages" className="anim-pop absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]" onClick={(e) => e.stopPropagation()}>
+            {[...SECTIONS, { title: "Account", items: [{ href: "/settings", label: "Settings", icon: "settings" }] }].map((s) => (
+              <div key={s.title} className="mb-4">
+                <div className="mb-2 text-[12px] font-semibold text-muted">{s.title}</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {s.items.map((n) => (
+                    <Link key={n.href} href={n.href} onClick={() => setMore(false)} className={`flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-[12.5px] font-semibold ${active(n.href) ? "border-teal bg-teal-t text-teal-d" : "border-line text-ink"}`}>
+                      <Icon name={n.icon} className="size-5" />{n.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {ready && <Autopilot />}
       {quick === "contact" && <AddContactModal onClose={() => setQuick(null)} />}
