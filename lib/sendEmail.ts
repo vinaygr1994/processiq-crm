@@ -19,7 +19,7 @@ export interface SendJob {
 export async function runSend(job: SendJob, crm: Pick<Crm, "add" | "update">, settings: Settings | null, onProgress?: (done: number, total: number) => void) {
   const { add, update } = crm;
   const camp = await add("campaigns", {
-    name: job.name.trim() || job.subject.trim(), subject: job.subject.trim(), body: job.body, audience: `label:${job.audienceLabel}`,
+    name: job.name.trim() || sendName(job.subject), subject: job.subject.trim(), body: job.body, audience: `label:${job.audienceLabel}`,
     status: "draft", sent_count: 0, failed_count: 0, sent_at: null,
   });
   if (!camp) throw new Error("Couldn't start the send.");
@@ -47,3 +47,6 @@ export async function runSend(job: SendJob, crm: Pick<Crm, "add" | "update">, se
 
 /** Readable audience for older and newer sends. */
 export const audienceText = (a: string) => (a.startsWith("label:") ? a.slice(6) : a === "all" ? "All contacts" : `Tagged ${a}`);
+
+/** A readable default name for a send: merge fields become [First name] etc. */
+export const sendName = (subject: string) => subject.trim().replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, k: string) => `[${k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}]`);

@@ -18,7 +18,9 @@ export async function POST(req: Request) {
   if (!sb) return json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, 500);
   const { data, error } = await sb.from("workflows").select("owner_id").eq("active", true);
   if (error) return json({ error: error.message }, 500);
-  const owners = [...new Set((data ?? []).map((r: { owner_id: string }) => r.owner_id))];
+  // Owners with a scheduled send that is due also need a pass (ignored if migration 007 hasn't been run).
+  const due = await sb.from("campaigns").select("owner_id").in("status", ["scheduled", "sending"]).lte("scheduled_at", new Date().toISOString());
+  const owners = [...new Set([...(data ?? []), ...(due.data ?? [])].map((r: { owner_id: string }) => r.owner_id))];
   const base = appUrl(req);
   const out: Record<string, unknown> = {};
   const started = Date.now();

@@ -19,4 +19,9 @@ export const localDb: Db = {
     if (i >= 0) list[i] = { ...list[i], ...patch }; write(rows);
   },
   async claim() { return true; },
+  async claimCampaign(id, leaseUntil) {
+    const rows = read(); const c = rows.campaigns.find((x) => x.id === id);
+    if (!c || (c.status !== "scheduled" && c.status !== "sending")) return false;
+    c.status = "sending"; c.scheduled_at = leaseUntil; write(rows); return true;
+  },
 };

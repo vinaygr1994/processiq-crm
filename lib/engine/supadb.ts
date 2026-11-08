@@ -38,5 +38,10 @@ export function supaDb(sb: SupabaseClient, ownerId?: string): Db {
       if (error) throw new Error(error.message);
       return (data?.length ?? 0) > 0;
     },
+    async claimCampaign(id, leaseUntil, nowIso) {
+      const { data, error } = await sb.from("campaigns").update({ status: "sending", scheduled_at: leaseUntil }).eq("id", id).in("status", ["scheduled", "sending"]).lte("scheduled_at", nowIso).select("id");
+      if (error) return false;
+      return (data?.length ?? 0) > 0;
+    },
   };
 }

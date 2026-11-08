@@ -98,10 +98,12 @@ create table if not exists public.campaigns (
   subject text not null default '',
   body text not null default '',
   audience text not null default 'all',
-  status text not null default 'draft' check (status in ('draft','sent')),
+  status text not null default 'draft' check (status in ('draft','scheduled','sending','sent','canceled')),
   sent_count int not null default 0,
   failed_count int not null default 0,
   sent_at timestamptz,
+  scheduled_at timestamptz,
+  spec jsonb,
   created_at timestamptz not null default now()
 );
 

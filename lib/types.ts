@@ -82,10 +82,13 @@ export interface Campaign {
   subject: string;
   body: string;
   audience: string; // "all" or a tag
-  status: "draft" | "sent";
+  status: "draft" | "scheduled" | "sending" | "sent" | "canceled";
   sent_count: number;
   failed_count: number;
   sent_at: string | null;
+  /** Scheduled sends (migration 007). */
+  scheduled_at?: string | null;
+  spec?: unknown;
   created_at: string;
 }
 export interface EmailLog {

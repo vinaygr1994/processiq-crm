@@ -39,7 +39,7 @@ function TemplateModal({ t, onClose }: { t?: Template; onClose: () => void }) {
 }
 
 function EmailPageInner() {
-  const { data, remove } = useCrm();
+  const { data, remove, update } = useCrm();
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => (["campaigns", "templates", "sent"].includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "campaigns"));
   const [tpl, setTpl] = useState<Template | "new" | null>(null);
@@ -65,7 +65,11 @@ function EmailPageInner() {
           <li key={c.id} className="flex items-center gap-4 px-5 py-4">
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-iris-t text-iris"><Icon name="mail" className="size-5" /></span>
             <div className="min-w-0 flex-1"><div className="truncate font-semibold text-ink">{c.name}</div><div className="truncate text-sm text-muted">{c.subject} · {audienceText(c.audience)}</div></div>
-            <div className="hidden text-right text-sm sm:block"><div className="font-semibold text-ink">{c.sent_count} sent{c.failed_count ? <span className="text-rose"> · {c.failed_count} failed</span> : null}</div><div className="text-muted">{(() => { const m = data.emails.filter((e) => e.campaign_id === c.id && e.status === "sent"); const o = m.filter((e) => e.opened_at || e.clicked_at).length, k = m.filter((e) => e.clicked_at).length; return m.length ? `${Math.round((o / m.length) * 100)}% opened · ${Math.round((k / m.length) * 100)}% clicked` : c.sent_at ? timeAgo(c.sent_at) : "Draft"; })()}</div></div>
+            <div className="hidden text-right text-sm sm:block">{c.status === "scheduled" || c.status === "sending" || c.status === "canceled" ? (<>
+              <Badge tone={c.status === "canceled" ? "gray" : "sun"}>{c.status === "scheduled" ? "Scheduled" : c.status === "sending" ? "Sending" : "Canceled"}</Badge>
+              {c.scheduled_at && c.status === "scheduled" && <div className="mt-1 text-muted">{new Date(c.scheduled_at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>}
+            </>) : <><div className="font-semibold text-ink">{c.sent_count} sent{c.failed_count ? <span className="text-rose"> · {c.failed_count} failed</span> : null}</div><div className="text-muted">{(() => { const m = data.emails.filter((e) => e.campaign_id === c.id && e.status === "sent"); const o = m.filter((e) => e.opened_at || e.clicked_at).length, k = m.filter((e) => e.clicked_at).length; return m.length ? `${Math.round((o / m.length) * 100)}% opened · ${Math.round((k / m.length) * 100)}% clicked` : c.sent_at ? timeAgo(c.sent_at) : "Draft"; })()}</div></>}</div>
+            {c.status === "scheduled" && <Button size="sm" variant="soft" onClick={() => update("campaigns", c.id, { status: "canceled" })}>Cancel</Button>}
             <button onClick={() => setDel(c)} className="text-[#b3bdd2] hover:text-rose" aria-label="Delete campaign"><Icon name="trash" className="size-[18px]" /></button>
           </li>))}</ul></Card>
       ))}

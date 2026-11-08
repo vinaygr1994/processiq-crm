@@ -20,7 +20,7 @@ export function useEngine() {
     busy.current = true;
     try {
       const s = isDemo ? await runEngine(localDb, demoPort) : await callApi<Summary>("/api/workflows/run", {});
-      if (s.enrolled || s.steps) await reloadRef.current();
+      if (s.enrolled || s.steps || s.sent) await reloadRef.current();
     } catch { /* the scheduler will try again shortly */ } finally { busy.current = false; }
   }, []);
 }

@@ -4,6 +4,7 @@ import { nextTimeOfDay } from "./tz";
 import type { Cond, Step } from "./types";
 import { branches, uid } from "./types";
 import { isDesign, parseDesign, plainOf, emailVars, type Design } from "../emailDesign";
+import { runScheduledSends } from "./sends";
 
 /** Minimal storage the engine needs. Implemented for localStorage (demo) and Supabase (live / server). */
 export interface Db {
@@ -12,6 +13,8 @@ export interface Db {
   update<K extends keyof Tables>(table: K, id: string, patch: Partial<Tables[K]>): Promise<void>;
   /** Atomically takes a run so two processes never handle it twice. */
   claim(runId: string, lockUntil: string, nowIso: string): Promise<boolean>;
+  /** Atomically takes a due scheduled send (sets a short lease). */
+  claimCampaign(id: string, leaseUntil: string, nowIso: string): Promise<boolean>;
 }
 export type SendResult = "sent" | "demo" | "failed" | "skipped";
 export interface Port {
@@ -79,7 +82,7 @@ export function evalCond(c: Cond, deal?: Deal, contact?: Contact, visit?: Visit)
 /** Stable 0-99 bucket per run and step, so a person always gets the same A/B path. */
 export function bucket(key: string) { let h = 2166136261; for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) % 100; }
 
-export interface Summary { enrolled: number; steps: number; finished: number }
+export interface Summary { enrolled: number; steps: number; finished: number; sent?: number }
 
 /** One pass: notice new triggers, then run every run that is due. Safe to call as often as you like. */
 export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string } = {}): Promise<Summary> {
@@ -89,6 +92,7 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     db.list("workflows"), db.list("workflow_runs"), db.list("deals"), db.list("contacts"), db.list("visits"), db.list("settings"),
   ]);
   const settings = settingsList[0] as Settings | undefined;
+  if (!opts.onlyRunId) sum.sent = await runScheduledSends(db, port, contacts, settings).catch(() => 0);
   const active = workflows.filter((w) => w.active);
   if (!active.length) return sum;
   const needsEmails = active.some((w) => JSON.stringify(w.steps).includes('"engage"'));

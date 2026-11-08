@@ -9,7 +9,7 @@ import { useCrm } from "@/lib/store";
 import { useStatus } from "@/lib/status";
 import { fill } from "@/lib/format";
 import { emailVars, parseDesign, renderDesign } from "@/lib/emailDesign";
-import { runSend } from "@/lib/sendEmail";
+import { runSend, sendName } from "@/lib/sendEmail";
 import type { Contact } from "@/lib/types";
 
 type Mode = "one" | "pick" | "list" | "all";
@@ -20,6 +20,9 @@ const MODES: { id: Mode; title: string; text: string; icon: string }[] = [
   { id: "all", title: "Everyone", text: "All contacts with an email", icon: "send" },
 ];
 const STEPS = ["Recipients", "Content", "Review and send"];
+const clock = () => Date.now();
+/** A timestamp as the value a datetime-local input expects, in the viewer's time zone. */
+const localInput = (ms: number) => new Date(ms - new Date(ms).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
 function ContactPicker({ multiple, value, onChange }: { multiple: boolean; value: string[]; onChange: (ids: string[]) => void }) {
   const { data } = useCrm();
@@ -88,6 +91,9 @@ function SendWizard() {
   const [kind, setKind] = useState<"marketing" | "personal">("personal");
   const [err, setErr] = useState("");
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [when, setWhen] = useState<"now" | "later">("now");
+  const [minAt] = useState(() => localInput(clock()));
+  const [at, setAt] = useState(() => { const d = new Date(clock() + 86_400_000); d.setHours(9, 0, 0, 0); return localInput(d.getTime()); });
 
   // Prefill from links: ?to=<contact id>, ?list=<tag>, ?template=<id>
   useEffect(() => {
@@ -134,6 +140,18 @@ function SendWizard() {
   async function send() {
     setErr("");
     if (needsSetup && !status?.demo) return setErr("Marketing emails need your business name and mailing address. Add them in Settings, or send as a one-to-one email.");
+    if (when === "later") {
+      const t0 = new Date(at);
+      if (isNaN(+t0) || +t0 < clock() + 60_000) return setErr("Pick a time at least a minute from now.");
+      const row = await crm.add("campaigns", {
+        name: name.trim() || sendName(subject), subject: subject.trim(), body, audience: `label:${audienceLabel}`, status: "scheduled", sent_count: 0, failed_count: 0, sent_at: null,
+        scheduled_at: t0.toISOString(), spec: { mode, ids, lists, exclude, marketing },
+      } as never);
+      if (!row) return;
+      if ((row as { status?: string }).status !== "scheduled" || !(row as { scheduled_at?: string }).scheduled_at) return setErr("Scheduling needs a one-time database update. Run supabase/migrations/007_scheduled_sends.sql in Supabase, then try again.");
+      toast(`Scheduled for ${t0.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`);
+      return router.push("/emails");
+    }
     setProgress({ done: 0, total: recipients.length });
     try {
       const r = await runSend({ name, subject, body, recipients, marketing, audienceLabel }, crm, settings, (done, total) => setProgress({ done, total }));
@@ -224,7 +242,19 @@ function SendWizard() {
                 <div key={k} className="grid grid-cols-[80px_1fr] gap-2 py-2.5"><dt className="text-muted">{k}</dt><dd className="min-w-0 break-words font-medium text-ink">{v}</dd></div>
               ))}
             </dl>
-            <Field label="Internal name (optional)" hint="Only you see this, in your sends list."><input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder={subject || "e.g. Spring offer"} /></Field>
+            <div>
+              <div className="mb-2 text-sm font-semibold text-ink">When</div>
+              <div className="inline-flex rounded-full bg-cloud p-1" role="radiogroup" aria-label="When to send">
+                {([["now", "Send now"], ["later", "Schedule"]] as const).map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={when === k} onClick={() => setWhen(k)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${when === k ? "bg-white text-ink shadow-sm" : "text-muted"}`}>{l}</button>)}
+              </div>
+              {when === "later" && (
+                <div className="mt-3">
+                  <input type="datetime-local" className="field" value={at} min={minAt} onChange={(e) => setAt(e.target.value)} aria-label="Send date and time" />
+                  <p className="mt-1.5 text-[12.5px] text-muted">Your time zone ({Intl.DateTimeFormat().resolvedOptions().timeZone}). Lists are checked at send time, so new members are included.</p>
+                </div>
+              )}
+            </div>
+            <Field label="Internal name (optional)" hint="Only you see this, in your sends list."><input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder={sendName(subject) || "e.g. Spring offer"} /></Field>
             {needsSetup && !status?.demo && <p className="rounded-xl bg-sun-t px-4 py-3 text-sm text-[#7a4700]">Marketing emails need your business name and mailing address. <Link href="/settings" className="font-semibold underline">Add them in Settings</Link>.</p>}
             {status && !status.demo && !status.email && <p className="rounded-xl bg-sun-t px-4 py-3 text-sm text-[#7a4700]">Email sending isn&apos;t connected yet. Finish the Resend setup in Settings first.</p>}
             {progress && (
@@ -248,7 +278,7 @@ function SendWizard() {
       {err && <p role="alert" className="text-sm font-medium text-rose">{err}</p>}
       <div className="flex items-center justify-between gap-2 border-t border-line pt-5">
         <Button variant="soft" onClick={() => (step === 0 ? router.push("/marketing") : setStep(step - 1))} disabled={!!progress}>{step === 0 ? "Cancel" : "Back"}</Button>
-        {step < 2 ? <Button onClick={next}>Continue</Button> : <Button icon="send" onClick={send} disabled={!!progress}>{progress ? "Sending…" : `Send to ${recipients.length} ${recipients.length === 1 ? "person" : "people"}`}</Button>}
+        {step < 2 ? <Button onClick={next}>Continue</Button> : <Button icon={when === "later" ? "clock" : "send"} onClick={send} disabled={!!progress}>{progress ? "Sending…" : when === "later" ? "Schedule send" : `Send to ${recipients.length} ${recipients.length === 1 ? "person" : "people"}`}</Button>}
       </div>
     </div>
   );
