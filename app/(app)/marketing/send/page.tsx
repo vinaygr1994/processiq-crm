@@ -10,6 +10,8 @@ import { useStatus } from "@/lib/status";
 import { fill } from "@/lib/format";
 import { emailVars, parseDesign, renderDesign } from "@/lib/emailDesign";
 import { runSend, sendName } from "@/lib/sendEmail";
+import { SEG, membersOf, segmentMembers } from "@/lib/segments";
+import { useSegCtx } from "@/components/SegmentBuilder";
 import type { Contact } from "@/lib/types";
 
 type Mode = "one" | "pick" | "list" | "all";
@@ -58,15 +60,16 @@ function ContactPicker({ multiple, value, onChange }: { multiple: boolean; value
   );
 }
 
-function ListPicker({ label, value, onChange, counts }: { label: string; value: string[]; onChange: (v: string[]) => void; counts: [string, number][] }) {
+interface ListOpt { key: string; label: string; count: number; seg: boolean }
+function ListPicker({ label, value, onChange, counts }: { label: string; value: string[]; onChange: (v: string[]) => void; counts: ListOpt[] }) {
   return (
     <div>
       <div className="mb-2 text-sm font-semibold text-ink">{label}</div>
       {counts.length === 0 ? <p className="text-sm text-muted">No lists yet. <Link href="/marketing/lists" className="font-semibold text-teal-d hover:underline">Create a list</Link></p> : (
         <div className="flex flex-wrap gap-1.5">
-          {counts.map(([t, n]) => {
-            const on = value.includes(t);
-            return <button key={t} type="button" aria-pressed={on} onClick={() => onChange(on ? value.filter((x) => x !== t) : [...value, t])} className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${on ? "border-teal bg-teal-t text-teal-d" : "border-line bg-white text-body hover:bg-cloud"}`}>{t} <span className="font-medium text-muted">{n}</span></button>;
+          {counts.map((o) => {
+            const on = value.includes(o.key);
+            return <button key={o.key} type="button" aria-pressed={on} onClick={() => onChange(on ? value.filter((x) => x !== o.key) : [...value, o.key])} className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${on ? "border-teal bg-teal-t text-teal-d" : "border-line bg-white text-body hover:bg-cloud"}`}>{o.seg && <Icon name="sparkle" className="size-3.5 text-iris" />}{o.label} <span className="font-medium text-muted">{o.count}</span></button>;
           })}
         </div>
       )}
@@ -106,24 +109,30 @@ function SendWizard() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const listCounts = useMemo(() => {
+  const x = useSegCtx();
+  const listCounts: ListOpt[] = useMemo(() => {
     const m = new Map<string, number>();
     data.contacts.forEach((c) => c.tags.forEach((t) => m.set(t, (m.get(t) ?? 0) + 1)));
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [data.contacts]);
+    const tags = [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, n]) => ({ key: k, label: k, count: n, seg: false }));
+    const segs = data.segments.map((s) => ({ key: SEG + s.id, label: s.name, count: segmentMembers(data.contacts, s, x).length, seg: true }));
+    return [...segs, ...tags];
+  }, [data.contacts, data.segments, x]);
+  const labelOf = (k: string) => listCounts.find((o) => o.key === k)?.label ?? k;
 
   const chosen: Contact[] = useMemo(() => {
     let base: Contact[] = [];
     if (mode === "one" || mode === "pick") base = data.contacts.filter((c) => ids.includes(c.id));
-    if (mode === "list") base = data.contacts.filter((c) => c.tags.some((t) => lists.includes(t)));
+    const union = (keys: string[]) => new Set(keys.flatMap((k) => membersOf(k, data.contacts, data.segments, x).map((c) => c.id)));
+    if (mode === "list") { const inc = union(lists); base = data.contacts.filter((c) => inc.has(c.id)); }
     if (mode === "all") base = data.contacts;
-    return base.filter((c) => !c.tags.some((t) => exclude.includes(t)));
-  }, [mode, ids, lists, exclude, data.contacts]);
+    const out = union(exclude);
+    return base.filter((c) => !out.has(c.id));
+  }, [mode, ids, lists, exclude, data.contacts, data.segments, x]);
   const personalAllowed = (mode === "one" || mode === "pick") && chosen.length <= 25;
   const marketing = kind === "marketing" || !personalAllowed;
   const recipients = chosen.filter((c) => c.email && (!marketing || !c.unsubscribed));
   const noEmail = chosen.filter((c) => !c.email).length, unsub = marketing ? chosen.filter((c) => c.email && c.unsubscribed).length : 0;
-  const audienceLabel = mode === "one" ? (chosen[0]?.name ?? "One person") : mode === "pick" ? `${chosen.length} selected people` : mode === "list" ? `List: ${lists.join(", ")}` : "Everyone";
+  const audienceLabel = mode === "one" ? (chosen[0]?.name ?? "One person") : mode === "pick" ? `${chosen.length} selected people` : mode === "list" ? `List: ${lists.map(labelOf).join(", ")}` : "Everyone";
   const needsSetup = marketing && (!settings?.address?.trim() || !settings?.business_name?.trim());
   const design = parseDesign(body);
 

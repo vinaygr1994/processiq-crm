@@ -1,9 +1,9 @@
 export type TriggerType =
   | "lead_created" | "stage_changed" | "visit_booked" | "visit_done" | "visit_no_show" | "quote_sent" | "manual"
   // Contact-based entry sources (journeys)
-  | "contact_created" | "tag_added" | "audience";
+  | "contact_created" | "tag_added" | "audience" | "segment";
 /** source: lead/contact source filter. tag: for tag_added and audience ("" = everyone with an email). */
-export interface Trigger { type: TriggerType; stage?: string; source?: string; tag?: string }
+export interface Trigger { type: TriggerType; stage?: string; source?: string; tag?: string; segment?: string }
 
 export type CondField = "deal.stage" | "deal.source" | "deal.project" | "deal.value" | "deal.rep" | "deal.budget" | "contact.email" | "contact.phone" | "contact.tags" | "contact.company" | "contact.source" | "contact.unsubscribed" | "visit.status" | "visit.priority";
 export type CondOp = "is" | "is_not" | "contains" | "gt" | "lt" | "empty" | "not_empty";

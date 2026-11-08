@@ -60,6 +60,7 @@ export function seedRows(): Rows {
     ],
     campaigns: [],
     emails: [],
+    segments: [],
     workflows: STARTERS.map((w) => ({ ...w, id: "wf-" + w.template_id, active: true, activated_at: new Date().toISOString(), created_at: new Date().toISOString() })),
     workflow_runs: [],
     settings: [

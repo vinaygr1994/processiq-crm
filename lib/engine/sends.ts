@@ -4,15 +4,20 @@ import type { Db, Port } from "./engine";
 import type { Campaign, Contact, Settings } from "../types";
 import { fill } from "../format";
 import { emailVars, parseDesign, plainOf } from "../emailDesign";
+import { SEG, membersOf, segCtx, type SegCtx } from "../segments";
+import type { Segment } from "../types";
 
 export interface SendSpec { mode: "one" | "pick" | "list" | "all"; ids: string[]; lists: string[]; exclude: string[]; marketing: boolean }
 
-export function resolveRecipients(spec: SendSpec, contacts: Contact[]): Contact[] {
+/** Everyone the send should reach right now. Lists can be tags or smart segments ("seg:<id>"). */
+export function resolveRecipients(spec: SendSpec, contacts: Contact[], segments: Segment[] = [], x: SegCtx | null = null): Contact[] {
+  const union = (keys: string[]) => new Set(keys.flatMap((k) => membersOf(k, contacts, segments, x).map((c) => c.id)));
   let base: Contact[] = [];
   if (spec.mode === "one" || spec.mode === "pick") base = contacts.filter((c) => spec.ids.includes(c.id));
-  if (spec.mode === "list") base = contacts.filter((c) => c.tags.some((t) => spec.lists.includes(t)));
+  if (spec.mode === "list") { const ids = union(spec.lists); base = contacts.filter((c) => ids.has(c.id)); }
   if (spec.mode === "all") base = contacts;
-  return base.filter((c) => c.email && !c.tags.some((t) => spec.exclude.includes(t)) && (!spec.marketing || !c.unsubscribed));
+  const out = union(spec.exclude);
+  return base.filter((c) => c.email && !out.has(c.id) && (!spec.marketing || !c.unsubscribed));
 }
 
 const BUDGET_MS = 35_000;
@@ -29,8 +34,12 @@ export async function runScheduledSends(db: Db, port: Port, contacts: Contact[],
     if (!(await db.claimCampaign(camp.id, new Date(now + 120_000).toISOString(), new Date(now).toISOString()))) continue;
     const spec = camp.spec as SendSpec | null;
     if (!spec) { await db.update("campaigns", camp.id, { status: "canceled" } as Partial<Campaign>); continue; }
-    const already = new Set((await db.list("emails")).filter((e) => e.campaign_id === camp.id).map((e) => e.contact_id));
-    const todo = resolveRecipients(spec, contacts).filter((c) => !already.has(c.id));
+    const emails = await db.list("emails");
+    const already = new Set(emails.filter((e) => e.campaign_id === camp.id).map((e) => e.contact_id));
+    const usesSeg = [...spec.lists, ...spec.exclude].some((k) => k.startsWith(SEG));
+    const segments = usesSeg ? await db.list("segments").catch(() => []) : [];
+    const x = usesSeg ? segCtx(emails, await db.list("deals"), await db.list("workflow_runs"), now) : null;
+    const todo = resolveRecipients(spec, contacts, segments, x).filter((c) => !already.has(c.id));
     const design = parseDesign(camp.body);
     let ok = camp.sent_count, bad = camp.failed_count, finished = true;
     for (const c of todo) {

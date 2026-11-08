@@ -196,6 +196,7 @@ export default function JourneyPage() {
     const p: string[] = [];
     if ((trigger.type === "tag_added") && !trigger.tag) p.push("Choose the tag that starts this journey.");
     if (trigger.type === "stage_changed" && !trigger.stage) p.push("Choose the stage that starts this journey.");
+    if (trigger.type === "segment" && !data.segments.some((s) => s.id === trigger.segment)) p.push("Choose the smart segment that starts this journey.");
     if (!steps.length) p.push("Add at least one activity.");
     for (const s of allSteps(steps)) {
       if (s.type === "email" && (!s.subject.trim() || (!parseDesign(s.body) && !s.body.trim()))) p.push("Every email needs a subject and content.");
@@ -240,6 +241,14 @@ export default function JourneyPage() {
           <Field label={trigger.type === "audience" ? "Only contacts with this tag (optional)" : "Tag"}>
             <input className="field" list="journey-tags" value={trigger.tag ?? ""} onChange={(e) => setTrig({ ...trigger, tag: e.target.value.toLowerCase().trim() })} placeholder={trigger.type === "audience" ? "Leave empty for everyone" : "e.g. newsletter"} />
             <datalist id="journey-tags">{tags.map((t) => <option key={t} value={t} />)}</datalist>
+          </Field>
+        )}
+        {trigger.type === "segment" && (
+          <Field label="Smart segment">
+            <select className="field" value={trigger.segment ?? ""} onChange={(e) => setTrig({ ...trigger, segment: e.target.value })}>
+              <option value="" disabled>Choose a segment…</option>{data.segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {data.segments.length === 0 && <p className="mt-1.5 text-[13px] text-muted"><Link href="/marketing/lists" className="font-semibold text-teal-d hover:underline">Create a smart segment</Link> first.</p>}
           </Field>
         )}
         {trigger.type === "audience" && <div className="rounded-xl bg-teal-t px-4 py-3 text-teal-d"><span className="font-display text-2xl font-semibold">{audienceCount}</span> <span className="text-sm font-medium">contacts match right now</span></div>}
@@ -362,7 +371,7 @@ export default function JourneyPage() {
             <button type="button" onClick={() => setSel("entry")} className={`w-48 shrink-0 rounded-2xl border bg-ink p-3 text-left text-white shadow-sm ${sel === "entry" ? "ring-4 ring-teal/30" : ""}`}>
               <div className="text-[12px] font-semibold text-white/60">Entry source</div>
               <div className="mt-0.5 text-[13.5px] font-semibold">{ENTRY.find((x) => x.id === trigger.type)?.label}</div>
-              <div className="mt-1 text-[12px] text-white/70">{trigger.tag ? `Tag: ${trigger.tag}` : trigger.stage ? stageName(trigger.stage) : trigger.source ?? ""}</div>
+              <div className="mt-1 text-[12px] text-white/70">{trigger.type === "segment" ? data.segments.find((s) => s.id === trigger.segment)?.name ?? "Choose a segment" : trigger.tag ? `Tag: ${trigger.tag}` : trigger.stage ? stageName(trigger.stage) : trigger.source ?? ""}</div>
             </button>
             <Lane list={steps} lp={[]} prefix={[]} />
             <button type="button" onClick={() => setSel("goal")} className={`w-40 shrink-0 rounded-2xl border border-line bg-white p-3 text-left shadow-sm ${sel === "goal" ? "ring-4 ring-teal/30" : ""}`}>

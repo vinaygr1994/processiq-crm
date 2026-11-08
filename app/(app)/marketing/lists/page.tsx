@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Button, Card, ConfirmModal, Empty, Field, Modal, PageHeader } from "@/components/ui";
 import { useCrm } from "@/lib/store";
-import type { Contact } from "@/lib/types";
+import type { Contact, Segment } from "@/lib/types";
+import { SegmentModal, useSegCtx } from "@/components/SegmentBuilder";
+import { SEG, fieldDef, segmentMembers } from "@/lib/segments";
 
 /** Lists are tags: adding someone to a list tags them, so lists work everywhere (journeys, sends, filters). */
 function ListModal({ initial, onClose }: { initial?: string; onClose: () => void }) {
@@ -63,7 +65,61 @@ function ListModal({ initial, onClose }: { initial?: string; onClose: () => void
   );
 }
 
+function SegmentsTab() {
+  const { data, remove, toast } = useCrm();
+  const x = useSegCtx();
+  const [open, setOpen] = useState<Segment | "new" | null>(null);
+  const [del, setDel] = useState<Segment | null>(null);
+  const summary = (s: Segment) => s.rules.map((r) => { const f = fieldDef(r.field); const op = f.ops.find((o) => o.id === r.op)?.label ?? r.op; const v = f.kind === "days" ? `${r.value} days` : f.kind === "campaign" ? data.campaigns.find((c) => c.id === r.value)?.name ?? "a send" : f.kind === "journey" ? data.workflows.find((w) => w.id === r.value)?.name ?? "a journey" : r.value; return `${f.label} ${op}${["set", "not_set", "subscribed", "unsubscribed"].includes(r.op) ? "" : ` ${v}`}`; }).join(s.match === "all" ? " and " : " or ");
+  return (
+    <>
+      {data.segments.length === 0 ? (
+        <Card><Empty icon="sparkle" title="No smart segments yet" text="Segments fill themselves from rules, like “opened an email in the last 30 days” or “deal value over $10,000”, and stay up to date." action={<Button icon="plus" onClick={() => setOpen("new")}>New segment</Button>} /></Card>
+      ) : (
+        <Card className="!p-0 overflow-hidden">
+          <ul className="divide-y divide-line">
+            {data.segments.map((s) => {
+              const m = segmentMembers(data.contacts, s, x), ok = m.filter((c) => c.email && !c.unsubscribed).length;
+              return (
+                <li key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-iris-t text-iris"><Icon name="sparkle" className="size-5" /></span>
+                  <div className="min-w-0 flex-1"><button type="button" onClick={() => setOpen(s)} className="font-semibold text-ink hover:text-teal-d">{s.name}</button><div className="line-clamp-2 text-[13px] text-muted">{summary(s)}</div></div>
+                  <div className="text-right text-sm"><div className="font-semibold text-ink">{m.length} contacts</div><div className="text-[13px] text-muted">{ok} can be emailed</div></div>
+                  <div className="flex items-center gap-1">
+                    <Link href={`/marketing/send?list=${encodeURIComponent(SEG + s.id)}`} className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-teal-d hover:bg-teal-t">Send email</Link>
+                    <button type="button" onClick={() => setOpen(s)} className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-body hover:bg-cloud">Edit</button>
+                    <button type="button" onClick={() => setDel(s)} aria-label={`Delete segment ${s.name}`} className="grid size-8 place-items-center rounded-full text-[#b3bdd2] hover:bg-rose-t hover:text-rose"><Icon name="trash" className="size-4" /></button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+      {data.segments.length > 0 && <div className="flex justify-end"><Button icon="plus" variant="soft" onClick={() => setOpen("new")}>New segment</Button></div>}
+      {open && <SegmentModal seg={open === "new" ? undefined : open} onClose={() => setOpen(null)} />}
+      {del && <ConfirmModal title={`Delete the segment “${del.name}”?`} text="The contacts stay in your CRM. Journeys that start from this segment stop letting new people in." onClose={() => setDel(null)} onConfirm={async () => { await remove("segments", del.id); setDel(null); toast("Segment deleted"); }} />}
+    </>
+  );
+}
+
 export default function ListsPage() {
+  const [tab, setTab] = useState<"lists" | "segments">("lists");
+  const [newSeg, setNewSeg] = useState(false);
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Lists and segments" sub="Lists are people you add by hand. Smart segments fill themselves from rules."
+        action={tab === "lists" ? undefined : <Button icon="plus" onClick={() => setNewSeg(true)}>New segment</Button>} />
+      <div className="inline-flex rounded-full bg-white p-1 shadow-sm ring-1 ring-line" role="tablist">
+        {([["lists", "Lists"], ["segments", "Smart segments"]] as const).map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === id ? "bg-ink text-white" : "text-body hover:bg-cloud"}`}>{l}</button>)}
+      </div>
+      {tab === "lists" ? <ListsTab /> : <SegmentsTab />}
+      {newSeg && <SegmentModal onClose={() => setNewSeg(false)} />}
+    </div>
+  );
+}
+
+function ListsTab() {
   const { data, update, toast } = useCrm();
   const [open, setOpen] = useState<string | "new" | null>(null);
   const [del, setDel] = useState<string | null>(null);
@@ -79,8 +135,8 @@ export default function ListsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Lists" sub="Group contacts so you can email them, start journeys for them, or filter by them." action={<Button icon="plus" onClick={() => setOpen("new")}>New list</Button>} />
+    <div className="space-y-4">
+      <div className="flex justify-end"><Button icon="plus" onClick={() => setOpen("new")}>New list</Button></div>
       {lists.length === 0 ? (
         <Card><Empty icon="tag" title="No lists yet" text="Create a list such as “newsletter” or “past customers”, then send to it or use it to start a journey." action={<Button icon="plus" onClick={() => setOpen("new")}>New list</Button>} /></Card>
       ) : (

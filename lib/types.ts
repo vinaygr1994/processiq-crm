@@ -157,6 +157,12 @@ export interface WorkflowRun {
   created_at: string;
 }
 
+export interface SegmentRule {
+  field: "tag" | "email" | "phone" | "company" | "source" | "created" | "unsubscribed" | "opened" | "clicked" | "received" | "campaign" | "deal_stage" | "deal_value" | "deals" | "journey";
+  op: string;
+  value: string;
+}
+export interface Segment { id: string; name: string; match: "all" | "any"; rules: SegmentRule[]; created_at: string }
 export interface Tables {
   workflows: Workflow;
   workflow_runs: WorkflowRun;
@@ -170,6 +176,7 @@ export interface Tables {
   campaigns: Campaign;
   emails: EmailLog;
   settings: Settings;
+  segments: Segment;
 }
 export type TableName = keyof Tables;
 export type Rows = { [K in TableName]: Tables[K][] };

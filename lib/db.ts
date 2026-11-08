@@ -3,7 +3,9 @@ import { supabase } from "./supabase";
 import { seedRows } from "./seed";
 import type { Rows, TableName, Tables } from "./types";
 
-const TABLES: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "campaigns", "emails", "settings", "workflows", "workflow_runs"];
+const TABLES: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "campaigns", "emails", "settings", "workflows", "workflow_runs", "segments"];
+/** Tables added by later migrations: load as empty until the migration is run. */
+const OPTIONAL: TableName[] = ["segments"];
 const KEY = "piq-crm-demo-v3";
 
 export interface Backend {
@@ -68,7 +70,7 @@ async function fetchAll<T>(table: TableName): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; from < 20000; from += 1000) {
     const { data, error } = await supabase().from(table).select("*").order("created_at", { ascending: false }).range(from, from + 999);
-    if (error) throw new Error(error.message);
+    if (error) { if (OPTIONAL.includes(table)) return out; throw new Error(error.message); }
     out.push(...((data ?? []) as T[]));
     if (!data || data.length < 1000) break;
   }
