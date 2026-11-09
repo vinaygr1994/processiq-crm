@@ -59,7 +59,7 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
   });
   if (!res.ok) {
     const e = (await res.json().catch(() => ({}))) as { message?: string };
-    return { ok: false, code: 502, error: e.message || `The email service rejected this message (${res.status}).` };
+    return { ok: false, code: 502, error: explainResend(e.message ?? "", res.status, fromAddr) };
   }
   return { ok: true };
 }
@@ -73,4 +73,14 @@ export function addTracking(html: string, id: string, base: string, skip = ""): 
   });
   const pixel = `<img src="${base}/api/t/o?e=${id}&amp;s=${signId(id)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">`;
   return out.includes("</body>") ? out.replace("</body>", `${pixel}</body>`) : out + pixel;
+}
+
+/** Turns Resend's error into a plain next step. */
+function explainResend(msg: string, status: number, from: string): string {
+  const domain = from.split("@")[1] ?? "your domain";
+  if (/not verified|verify a domain/i.test(msg)) return `Resend hasn't verified ${domain} yet. In Resend → Domains, check every DNS record shows "Verified", then try again. (Resend said: ${msg})`;
+  if (/only send testing emails|testing emails to your own/i.test(msg)) return `Your Resend account is still in test mode, so it can only email your Resend login address. Verify ${domain} in Resend → Domains to email anyone. (Resend said: ${msg})`;
+  if (status === 401 || status === 403 || /api key/i.test(msg)) return `Resend rejected the API key. Create a new key in Resend → API Keys, paste it into Vercel as RESEND_API_KEY, then redeploy. (Resend said: ${msg})`;
+  if (/from/i.test(msg) && /invalid/i.test(msg)) return `The sender address "${from}" isn't valid. Set RESEND_FROM_EMAIL in Vercel to an address on your verified domain, e.g. hello@${domain}, then redeploy. (Resend said: ${msg})`;
+  return msg || `The email service rejected this message (${status}).`;
 }
