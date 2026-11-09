@@ -66,7 +66,7 @@ export default function WorkflowPage() {
         </div>
         <div className="mt-4 border-t border-teal/20 pt-4">
           <h3 className="text-sm font-semibold text-ink">Stop early when… <span className="font-normal text-muted">(optional)</span></h3>
-          <p className="mb-2 text-[13px] text-muted">If any of these become true, people leave the workflow. Example: the job is no longer “New lead”.</p>
+          <p className="mb-2 text-[13px] text-muted">If any of these become true, people leave the workflow. Example: the deal is no longer “New lead”.</p>
           <div className="space-y-2">
             {exit.map((c, i) => (
               <div key={i} className="flex flex-wrap items-center gap-2"><CondEditor cond={c} onChange={(n) => touch(setExit)(exit.map((x, j) => (j === i ? n : x)))} />

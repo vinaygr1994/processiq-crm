@@ -23,7 +23,7 @@ create table if not exists public.deals (
   owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   title text not null,
   value numeric not null default 0,
-  stage text not null default 'new' check (stage in ('new','contacted','visit_booked','visit_done','quoted','won','completed','lost')),
+  stage text not null default 'new',
   contact_id uuid references public.contacts(id) on delete set null,
   source text not null default '',
   project text not null default '',
@@ -324,3 +324,12 @@ begin
     execute format('create policy "owner_all" on public.%I for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid())', t);
   end loop;
 end $$;
+
+-- Pipelines (also in migrations/011_pipelines.sql)
+alter table public.deals drop constraint if exists deals_stage_check;
+alter table public.deals add column if not exists pipeline text not null default 'default';
+alter table public.deals add column if not exists close_date date;
+alter table public.deals add column if not exists priority text not null default '';
+alter table public.settings add column if not exists pipelines jsonb not null default '[]';
+alter table public.settings add column if not exists industry text not null default 'general';
+alter table public.settings add column if not exists interests jsonb not null default '[]';

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { kindOf, pipelinesOf } from "@/lib/pipelines";
 import { useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Button, Card, Field, Modal, PageHeader } from "@/components/ui";
@@ -57,7 +58,7 @@ export default function CalendarPage() {
   const selDate = new Date(sel + "T00:00:00");
   const selEvents = events.get(sel) ?? [];
   const reps = settings?.reps ?? [];
-  const openJobs = data.deals.filter((d) => ["new", "contacted", "visit_booked", "visit_done"].includes(d.stage));
+  const openJobs = data.deals.filter((d) => kindOf(d.stage, pipelinesOf(settings)) === "open");
 
   return (
     <div className="space-y-5">
@@ -130,13 +131,13 @@ export default function CalendarPage() {
 
       {pick && (
         <Modal title="Book a visit" onClose={() => setPick(null)}>
-          <Field label="Which job?" hint="Pick the job to book a visit for. You'll choose the time next.">
+          <Field label="Which deal?" hint="Pick the deal to book a meeting for. You'll choose the time next.">
             <select className="field" defaultValue="" onChange={(e) => { const d = deals.get(e.target.value); if (d) { setBook({ deal: d, day: pick }); setPick(null); } }}>
-              <option value="" disabled>Choose a job…</option>
+              <option value="" disabled>Choose a deal…</option>
               {openJobs.map((d) => <option key={d.id} value={d.id}>{contacts.get(d.contact_id ?? "")?.name ?? d.title} · {d.project}</option>)}
             </select>
           </Field>
-          {openJobs.length === 0 && <p className="mt-3 text-sm text-muted">No open jobs yet. Add a lead first.</p>}
+          {openJobs.length === 0 && <p className="mt-3 text-sm text-muted">No open deals yet. Create a deal first.</p>}
         </Modal>
       )}
       {book && <BookVisitModal deal={book.deal} day={book.day} onClose={() => setBook(null)} />}

@@ -1,98 +1,204 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DealModal } from "@/components/DealModal";
 import { BookVisitModal, LostModal, NewLeadModal, QuoteModal, VisitResultModal } from "@/components/flowModals";
-import { Avatar, Button, PageHeader } from "@/components/ui";
+import { Icon } from "@/components/Icon";
+import { Avatar, Badge, Button, Card, PageHeader } from "@/components/ui";
 import { useCrm } from "@/lib/store";
 import { useFlow } from "@/lib/flow";
 import { money } from "@/lib/format";
 import { useStages } from "@/lib/useStages";
-import type { Deal, Stage, Visit } from "@/lib/types";
+import { PRIORITIES, columnOf, pipelineOf, weighted, type PStage } from "@/lib/pipelines";
+import type { Deal, Visit } from "@/lib/types";
 
 type Pending = { kind: "visit" | "result" | "quote" | "lost"; deal: Deal; visit?: Visit };
+type Sort = "name" | "value" | "close" | "stage" | "owner" | "created";
+const DAY = 86_400_000;
+const short = (d: string) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const compact = (n: number) => (n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `$${Math.round(n / 1000)}k` : money(n));
 
 function Board() {
   const { data } = useCrm();
-  const { stages } = useStages();
+  const { pipelines } = useStages();
   const flow = useFlow();
   const router = useRouter();
   const sp = useSearchParams();
   const openId = sp.get("deal");
+  const [pid, setPid] = useState(pipelines[0].id);
+  const pipe = pipelines.find((p) => p.id === pid) ?? pipelines[0];
+  const [view, setView] = useState<"board" | "table">("board");
+  const [q, setQ] = useState("");
+  const [owner, setOwner] = useState("");
+  const [prio, setPrio] = useState("");
+  const [showClosed, setShowClosed] = useState(true);
+  const [sort, setSort] = useState<{ by: Sort; dir: 1 | -1 }>({ by: "created", dir: -1 });
   const [adding, setAdding] = useState(false);
   const [drag, setDrag] = useState<string | null>(null);
-  const [over, setOver] = useState<Stage | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
-  const contacts = new Map(data.contacts.map((c) => [c.id, c]));
-  const open = data.deals.filter((d) => !["won", "completed", "lost"].includes(d.stage));
-  const inFlight = open.reduce((s, d) => s + d.value, 0);
+  const [now] = useState(() => Date.now());
+  const today = new Date(now).toISOString().slice(0, 10);
+  const contacts = useMemo(() => new Map(data.contacts.map((c) => [c.id, c])), [data.contacts]);
+  const owners = [...new Set(data.deals.map((d) => d.rep).filter(Boolean))].sort();
+
+  const deals = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return data.deals.filter((d) => {
+      if (pipelineOf(d, pipelines).id !== pipe.id) return false;
+      if (owner && (owner === "_none" ? d.rep : d.rep !== owner)) return false;
+      if (prio && d.priority !== prio) return false;
+      if (!s) return true;
+      const c = d.contact_id ? contacts.get(d.contact_id) : null;
+      return [d.title, d.project, d.source, c?.name ?? "", c?.company ?? "", c?.email ?? ""].some((v) => v.toLowerCase().includes(s));
+    });
+  }, [data.deals, pipelines, pipe.id, owner, prio, q, contacts]);
+
+  const stats = useMemo(() => {
+    const open = deals.filter((d) => columnOf(d, pipelines).kind === "open");
+    const month = today.slice(0, 7);
+    const won = deals.filter((d) => columnOf(d, pipelines).kind === "won");
+    const lost = deals.filter((d) => columnOf(d, pipelines).kind === "lost");
+    const recent = (d: Deal) => now - new Date(d.stage_at).getTime() < 90 * DAY;
+    const wr = won.filter(recent).length, lr = lost.filter(recent).length;
+    return {
+      open: open.length, value: open.reduce((a, d) => a + (d.value || 0), 0), forecast: open.reduce((a, d) => a + weighted(d, pipelines), 0),
+      closing: open.filter((d) => d.close_date?.startsWith(month)).reduce((a, d) => a + (d.value || 0), 0),
+      wonMonth: won.filter((d) => d.stage_at.startsWith(month)).reduce((a, d) => a + (d.value || 0), 0),
+      winRate: wr + lr ? Math.round((wr / (wr + lr)) * 100) : null,
+    };
+  }, [deals, pipelines, today, now]);
+
   const nextVisit = (id: string) => data.visits.filter((v) => v.deal_id === id && v.status === "scheduled").sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0];
 
-  function drop(deal: Deal, to: Stage) {
-    if (deal.stage === to) return;
-    if (to === "visit_booked") return setPending({ kind: "visit", deal });
-    if (to === "quoted") return setPending({ kind: "quote", deal });
-    if (to === "lost") return setPending({ kind: "lost", deal });
-    if (to === "visit_done") {
-      const v = nextVisit(deal.id);
-      return v ? setPending({ kind: "result", deal, visit: v }) : flow.moveSimple(deal, "visit_done");
-    }
-    if (to === "won") return void flow.markWon(deal);
-    if (to === "completed") return void flow.complete(deal);
-    void flow.moveSimple(deal, to);
+  function drop(deal: Deal, to: PStage) {
+    if (columnOf(deal, pipelines).id === to.id) return;
+    if (to.kind === "lost") return setPending({ kind: "lost", deal });
+    if (to.kind === "won") return void (to.id === "completed" ? flow.complete(deal) : flow.markWon(deal, undefined, to.id));
+    if (to.id === "visit_booked") return setPending({ kind: "visit", deal });
+    if (to.id === "quoted") return setPending({ kind: "quote", deal });
+    if (to.id === "visit_done") { const v = nextVisit(deal.id); if (v) return setPending({ kind: "result", deal, visit: v }); }
+    void flow.moveSimple(deal, to.id);
   }
 
+  const card = (d: Deal) => {
+    const c = d.contact_id ? contacts.get(d.contact_id) : null;
+    const v = nextVisit(d.id);
+    const overdue = d.close_date && d.close_date < today && columnOf(d, pipelines).kind === "open";
+    const days = Math.floor((now - new Date(d.stage_at).getTime()) / DAY);
+    const p = PRIORITIES.find((x) => x.id === d.priority);
+    return (
+      <li key={d.id} draggable onDragStart={() => setDrag(d.id)} onDragEnd={() => { setDrag(null); setOver(null); }}
+        className={`cursor-grab rounded-2xl border border-line bg-white p-3.5 shadow-[0_1px_2px_rgba(17,26,46,.04)] transition hover:border-[#cfd6e6] hover:shadow-md active:cursor-grabbing ${drag === d.id ? "opacity-40" : ""}`}>
+        <button onClick={() => router.push(`/pipeline?deal=${d.id}`)} className="block w-full text-left">
+          <div className="flex items-start justify-between gap-2">
+            <span className="line-clamp-2 font-semibold leading-snug text-ink">{d.title}</span>
+            {p && <span className={`mt-1 size-2 shrink-0 rounded-full ${p.id === "high" ? "bg-rose" : p.id === "medium" ? "bg-sun" : "bg-[#b3bdd2]"}`} title={`${p.label} priority`} />}
+          </div>
+          <div className="mt-0.5 truncate text-[13px] text-muted">{c ? `${c.name}${c.company ? ` · ${c.company}` : ""}` : "No contact"}</div>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="font-display text-[15px] font-semibold text-ink">{d.value ? money(d.value) : <span className="text-[13px] font-medium text-muted">No amount</span>}</span>
+            {d.close_date && <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${overdue ? "bg-rose-t text-rose" : "bg-cloud text-body"}`}>{overdue ? "Overdue " : ""}{short(d.close_date)}</span>}
+          </div>
+          {v && <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-sun-t px-2.5 py-0.5 text-xs font-semibold text-[#9a5a00]"><Icon name="calendar" className="size-3" />{new Date(v.starts_at).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>}
+        </button>
+        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-line pt-2 text-[12px] text-muted">
+          <span className="flex min-w-0 items-center gap-1.5">{d.rep ? <><Avatar name={d.rep} size="size-5 text-[9px]" /><span className="truncate">{d.rep}</span></> : "Unassigned"}</span>
+          <span title="Days in this stage">{days}d</span>
+        </div>
+      </li>
+    );
+  };
+
+  const sorted = useMemo(() => {
+    const val = (d: Deal) => sort.by === "name" ? d.title.toLowerCase() : sort.by === "value" ? d.value || 0 : sort.by === "close" ? d.close_date ?? "9999" : sort.by === "stage" ? pipe.stages.indexOf(columnOf(d, pipelines)) : sort.by === "owner" ? d.rep : d.created_at;
+    return [...deals].filter((d) => showClosed || columnOf(d, pipelines).kind === "open").sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir);
+  }, [deals, sort, pipe.stages, pipelines, showClosed]);
+  const th = (by: Sort, label: string, right = false) => (
+    <th className={`px-3 py-3 font-semibold ${right ? "text-right" : ""}`}><button type="button" onClick={() => setSort({ by, dir: sort.by === by ? (sort.dir === 1 ? -1 : 1) : 1 })} className="inline-flex items-center gap-1 hover:text-ink">{label}{sort.by === by && <span aria-hidden>{sort.dir === 1 ? "↑" : "↓"}</span>}</button></th>
+  );
+
+  const columns = pipe.stages.filter((s) => showClosed || s.kind === "open");
+
   return (
-    <div>
-      <PageHeader title="Jobs" sub={`${open.length} in progress · ${money(inFlight)} quoted or in play · drag a card to move it along`} action={<Button icon="plus" onClick={() => setAdding(true)}>New lead</Button>} />
-      <div className="-mx-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
-        <div className="grid min-w-max grid-flow-col auto-cols-[270px] gap-3.5">
-          {stages.map((s) => {
-            const deals = data.deals.filter((d) => d.stage === s.id).sort((a, b) => b.stage_at.localeCompare(a.stage_at));
-            const sum = deals.reduce((a, d) => a + d.value, 0);
-            return (
-              <section key={s.id} aria-label={s.label}
-                onDragOver={(e) => { e.preventDefault(); setOver(s.id); }} onDragLeave={() => setOver((o) => (o === s.id ? null : o))}
-                onDrop={() => { const d = data.deals.find((x) => x.id === drag); if (d) drop(d, s.id); setDrag(null); setOver(null); }}
-                className={`flex min-h-[340px] flex-col rounded-3xl border p-3 transition ${over === s.id ? "border-teal bg-teal-t/50" : "border-line bg-white/60"}`}>
-                <header className="mb-3 px-2 pt-1">
-                  <div className="flex items-center gap-2"><span className={`size-2.5 rounded-full ${s.dot}`} /><h2 className="font-display text-[15px] font-semibold">{s.label}</h2><span className="ml-auto rounded-full bg-white px-2 py-0.5 text-xs font-bold text-muted">{deals.length}</span></div>
-                  <div className="mt-0.5 text-[13px] text-muted">{sum ? money(sum) : s.hint}</div>
-                </header>
-                <ul className="flex flex-1 flex-col gap-2.5">
-                  {deals.map((d) => {
-                    const c = d.contact_id ? contacts.get(d.contact_id) : null;
-                    const v = nextVisit(d.id);
-                    return (
-                      <li key={d.id} draggable onDragStart={() => setDrag(d.id)} onDragEnd={() => { setDrag(null); setOver(null); }}
-                        className={`cursor-grab rounded-2xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md active:cursor-grabbing ${drag === d.id ? "opacity-40" : ""}`}>
-                        <button onClick={() => router.push(`/pipeline?deal=${d.id}`)} className="block w-full text-left">
-                          <div className="text-[13px] font-semibold text-teal-d">{d.project || "Project"}</div>
-                          <div className="font-semibold leading-snug text-ink">{c?.name ?? d.title}</div>
-                          <div className="mt-1 text-sm text-muted">{d.value ? <span className="font-display font-semibold text-ink">{money(d.value)}</span> : d.budget}</div>
-                          {v && <div className="mt-2 inline-flex items-center rounded-full bg-sun-t px-2.5 py-0.5 text-xs font-semibold text-[#9a5a00]">Visit {new Date(v.starts_at).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>}
-                        </button>
-                        <div className="mt-2.5 flex items-center justify-between gap-2 text-[12.5px] text-muted">
-                          <span className="flex min-w-0 items-center gap-1.5">{d.rep ? <><Avatar name={d.rep} size="size-5 text-[9px]" /><span className="truncate">{d.rep}</span></> : "Unassigned"}</span>
-                          <span className="truncate">{d.source}</span>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-          })}
+    <div className="space-y-5">
+      <PageHeader title="Deals" sub="Track every opportunity from first contact to closed." action={<Button icon="plus" onClick={() => setAdding(true)}>Create deal</Button>} />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {[["Open deals", String(stats.open)], ["Pipeline value", compact(stats.value)], ["Weighted forecast", compact(Math.round(stats.forecast))], ["Closing this month", compact(stats.closing)], ["Win rate (90 days)", stats.winRate === null ? "–" : `${stats.winRate}%`]].map(([l, v]) => (
+          <Card key={l} className="!p-4"><div className="text-[13px] font-medium text-muted">{l}</div><div className="mt-0.5 font-display text-2xl font-semibold text-ink">{v}</div></Card>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {pipelines.length > 1 && <select className="field !h-10 !w-auto !py-0 font-semibold" aria-label="Pipeline" value={pipe.id} onChange={(e) => setPid(e.target.value)}>{pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+        <div className="relative min-w-[200px] flex-1 sm:max-w-xs"><Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" /><input className="field !h-10 !py-0 !pl-10" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search deals" aria-label="Search deals" /></div>
+        <select className="field !h-10 !w-auto !py-0" aria-label="Owner" value={owner} onChange={(e) => setOwner(e.target.value)}><option value="">All owners</option><option value="_none">Unassigned</option>{owners.map((o) => <option key={o}>{o}</option>)}</select>
+        <select className="field !h-10 !w-auto !py-0" aria-label="Priority" value={prio} onChange={(e) => setPrio(e.target.value)}><option value="">Any priority</option>{PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
+        <label className="flex items-center gap-2 px-1 text-sm font-medium text-body"><input type="checkbox" className="size-4 accent-[#0b8a8a]" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />Show closed</label>
+        <div className="ml-auto inline-flex rounded-full bg-white p-1 ring-1 ring-line" role="tablist" aria-label="View">
+          {(["board", "table"] as const).map((v) => <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize ${view === v ? "bg-ink text-white" : "text-body hover:bg-cloud"}`}>{v}</button>)}
         </div>
       </div>
-      {adding && <NewLeadModal onClose={() => setAdding(false)} />}
+
+      {view === "board" ? (
+        <div className="-mx-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+          <div className="grid min-w-max grid-flow-col auto-cols-[272px] gap-3">
+            {columns.map((s) => {
+              const list = deals.filter((d) => columnOf(d, pipelines).id === s.id).sort((a, b) => b.stage_at.localeCompare(a.stage_at));
+              const sum = list.reduce((a, d) => a + (d.value || 0), 0);
+              return (
+                <section key={s.id} aria-label={s.label}
+                  onDragOver={(e) => { e.preventDefault(); setOver(s.id); }} onDragLeave={() => setOver((o) => (o === s.id ? null : o))}
+                  onDrop={() => { const d = data.deals.find((x) => x.id === drag); if (d) drop(d, s); setDrag(null); setOver(null); }}
+                  className={`flex min-h-[420px] flex-col rounded-3xl border p-2.5 transition ${over === s.id ? "border-teal bg-teal-t/50" : "border-line bg-[#f8f9fc]"}`}>
+                  <header className={`mb-2.5 rounded-2xl border-t-[3px] bg-white px-3 py-2.5 ${s.kind === "won" ? "border-emerald-500" : s.kind === "lost" ? "border-slate-400" : "border-teal"}`}>
+                    <div className="flex items-center gap-2"><h2 className="truncate text-[14px] font-semibold text-ink">{s.label}</h2><span className="ml-auto rounded-full bg-cloud px-2 py-0.5 text-xs font-bold text-body">{list.length}</span></div>
+                    <div className="mt-0.5 flex items-center justify-between text-[12.5px] text-muted"><span className="font-semibold text-ink">{money(sum)}</span>{s.kind === "open" && <span title="Weighted by the stage's win probability">{s.prob}% · {compact(Math.round(sum * s.prob / 100))}</span>}</div>
+                  </header>
+                  <ul className="flex flex-1 flex-col gap-2">{list.map(card)}</ul>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <Card className="!p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead className="border-b border-line bg-[#f8f9fc] text-left text-[13px] text-muted"><tr>{th("name", "Deal")}<th className="px-3 py-3 font-semibold">Contact</th>{th("stage", "Stage")}{th("value", "Amount", true)}{th("close", "Close date")}{th("owner", "Owner")}<th className="px-3 py-3 font-semibold">Source</th>{th("created", "Created")}</tr></thead>
+              <tbody className="divide-y divide-line">
+                {sorted.length === 0 && <tr><td colSpan={8} className="px-5 py-8 text-center text-muted">No deals match.</td></tr>}
+                {sorted.map((d) => {
+                  const c = d.contact_id ? contacts.get(d.contact_id) : null, st = columnOf(d, pipelines);
+                  const overdue = d.close_date && d.close_date < today && st.kind === "open";
+                  return (
+                    <tr key={d.id} className="cursor-pointer hover:bg-cloud" onClick={() => router.push(`/pipeline?deal=${d.id}`)}>
+                      <td className="px-3 py-3"><div className="font-semibold text-ink">{d.title}</div>{d.project && <div className="text-[12.5px] text-muted">{d.project}</div>}</td>
+                      <td className="px-3 py-3">{c ? <Link href={`/contacts/${c.id}`} onClick={(e) => e.stopPropagation()} className="hover:text-teal-d hover:underline">{c.name}</Link> : "–"}{c?.company && <div className="text-[12.5px] text-muted">{c.company}</div>}</td>
+                      <td className="px-3 py-3"><Badge tone={st.kind === "won" ? "green" : st.kind === "lost" ? "gray" : "iris"}>{st.label}</Badge></td>
+                      <td className="px-3 py-3 text-right font-semibold text-ink">{d.value ? money(d.value) : "–"}</td>
+                      <td className={`px-3 py-3 ${overdue ? "font-semibold text-rose" : ""}`}>{d.close_date ? short(d.close_date) : "–"}</td>
+                      <td className="px-3 py-3">{d.rep || <span className="text-muted">Unassigned</span>}</td>
+                      <td className="px-3 py-3 text-muted">{d.source || "–"}</td>
+                      <td className="px-3 py-3 text-muted">{new Date(d.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {sorted.length > 0 && <tfoot className="border-t border-line bg-[#f8f9fc] text-sm"><tr><td className="px-3 py-3 font-semibold" colSpan={3}>{sorted.length} deal{sorted.length === 1 ? "" : "s"}</td><td className="px-3 py-3 text-right font-semibold">{money(sorted.reduce((a, d) => a + (d.value || 0), 0))}</td><td colSpan={4} /></tr></tfoot>}
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {adding && <NewLeadModal pipelineId={pipe.id} onClose={() => setAdding(false)} />}
       {openId && <DealModal dealId={openId} onClose={() => router.replace("/pipeline")} />}
       {pending?.kind === "visit" && <BookVisitModal deal={pending.deal} onClose={() => setPending(null)} />}
       {pending?.kind === "result" && pending.visit && <VisitResultModal visit={pending.visit} onClose={() => setPending(null)} />}
       {pending?.kind === "quote" && <QuoteModal deal={pending.deal} onClose={() => setPending(null)} />}
       {pending?.kind === "lost" && <LostModal deal={pending.deal} onClose={() => setPending(null)} />}
-      <p className="mt-2 text-sm text-muted">Tip: <Link href="/automations" className="font-semibold text-teal-d hover:underline">Autopilot</Link> sends the replies, reminders and follow-ups for you as jobs move along.</p>
     </div>
   );
 }

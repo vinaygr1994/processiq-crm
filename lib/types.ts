@@ -28,6 +28,10 @@ export interface Deal {
   stage_at: string; // when it entered the current stage
   quote_sent_at: string | null;
   custom?: Record<string, string>;
+  /** Migration 011: which pipeline, expected close date, priority. */
+  pipeline?: string;
+  close_date?: string | null;
+  priority?: string;
   created_at: string;
 }
 export type VisitStatus = "scheduled" | "done" | "no_show" | "cancelled";
@@ -125,6 +129,10 @@ export interface Settings {
   intake_key: string;
   stage_labels: Record<string, string>;
   custom_fields: CustomField[];
+  /** Sales pipelines and industry (migration 011). */
+  pipelines?: import("./pipelines").Pipeline[];
+  industry?: string;
+  interests?: string[];
   /** Online booking page (migration 010). */
   booking?: Partial<BookingSettings>;
   created_at: string;

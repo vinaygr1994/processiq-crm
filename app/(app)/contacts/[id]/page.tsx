@@ -148,8 +148,8 @@ export default function ContactPage() {
           </Card>
 
           <Card>
-            <div className="mb-2 flex items-center justify-between"><h2 className="text-lg font-semibold">Jobs</h2></div>
-            {deals.length === 0 ? <p className="text-muted">No jobs with {contact.name.split(" ")[0]} yet. Add a new lead from the + button.</p> : (
+            <div className="mb-2 flex items-center justify-between"><h2 className="text-lg font-semibold">Deals</h2></div>
+            {deals.length === 0 ? <p className="text-muted">No deals with {contact.name.split(" ")[0]} yet.</p> : (
               <ul className="space-y-2">{deals.map((d) => (
                 <li key={d.id}><Link href={`/pipeline?deal=${d.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 hover:bg-cloud">
                   <span className="min-w-0"><span className="block truncate font-semibold text-ink">{d.project || d.title}</span><span className="text-[13px] text-muted">{d.value ? money(d.value) : d.budget}</span></span>

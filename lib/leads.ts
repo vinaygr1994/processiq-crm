@@ -30,8 +30,8 @@ export function matchSource(raw: string, fallback = "Website form") {
 export function matchProject(raw: string) {
   const t = raw.toLowerCase();
   if (!t) return "Other";
-  const rules: [RegExp, string][] = [[/kitchen/, "Kitchen remodel"], [/bath|shower|toilet|washroom/, "Bathroom remodel"], [/basement/, "Basement finishing"], [/addition|extension/, "Home addition"], [/whole|full home|entire/, "Whole-home renovation"], [/roof|siding|exterior|deck|fence/, "Roofing / exterior"], [/floor|tile|hardwood|carpet/, "Flooring"]];
-  return rules.find(([r]) => r.test(t))?.[1] ?? PROJECTS.find((p) => p.toLowerCase() === t) ?? "Other";
+  // Any industry: keep what the lead asked for, tidied up.
+  return PROJECTS.find((p) => p.toLowerCase() === t) ?? (raw.trim().length <= 60 ? raw.trim().replace(/^./, (c) => c.toUpperCase()) : "Other");
 }
 
 export function normalizeLead(raw: Bag, defaultSource = "Website form"): LeadIn | { error: string } {

@@ -12,7 +12,7 @@ import { uid } from "@/lib/engine/types";
 
 export const TRIGGERS: { id: TriggerType; label: string }[] = [
   { id: "lead_created", label: "A new lead arrives" },
-  { id: "stage_changed", label: "A job moves to a stage" },
+  { id: "stage_changed", label: "A deal moves to a stage" },
   { id: "visit_booked", label: "A visit is booked" },
   { id: "visit_done", label: "A visit result is saved" },
   { id: "visit_no_show", label: "A visit is marked no-show" },
@@ -36,7 +36,7 @@ export const triggerText = (t: Trigger, name: (id: string) => string = (id) => S
 };
 
 const FIELDS: { id: CondField; label: string }[] = [
-  { id: "deal.stage", label: "Job stage" }, { id: "deal.source", label: "Lead source" }, { id: "deal.project", label: "Project type" }, { id: "deal.value", label: "Job value" },
+  { id: "deal.stage", label: "Deal stage" }, { id: "deal.source", label: "Lead source" }, { id: "deal.project", label: "Interested in" }, { id: "deal.value", label: "Deal amount" },
   { id: "deal.rep", label: "Rep" }, { id: "deal.budget", label: "Budget" }, { id: "contact.email", label: "Email" }, { id: "contact.phone", label: "Phone" },
   { id: "contact.tags", label: "Tags" }, { id: "contact.company", label: "Company" }, { id: "contact.source", label: "Contact source" }, { id: "contact.unsubscribed", label: "Unsubscribed (true/false)" }, { id: "visit.status", label: "Visit status" }, { id: "visit.priority", label: "Visit priority" },
 ];
@@ -60,12 +60,12 @@ export function CondEditor({ cond, onChange }: { cond: Cond; onChange: (c: Cond)
 }
 
 const TYPES: { id: string; label: string; icon: string; hint: string; make: () => Step }[] = [
-  { id: "email", label: "Send an email", icon: "mail", hint: "To the homeowner", make: () => ({ id: uid(), type: "email", subject: "", body: "Hi {{first}},\n\n" }) },
-  { id: "sms", label: "Send a text", icon: "phone", hint: "SMS to the homeowner", make: () => ({ id: uid(), type: "sms", body: "Hi {{first}}, " }) },
+  { id: "email", label: "Send an email", icon: "mail", hint: "To the contact", make: () => ({ id: uid(), type: "email", subject: "", body: "Hi {{first}},\n\n" }) },
+  { id: "sms", label: "Send a text", icon: "phone", hint: "SMS to the contact", make: () => ({ id: uid(), type: "sms", body: "Hi {{first}}, " }) },
   { id: "wait", label: "Wait", icon: "clock", hint: "Pause the workflow", make: () => ({ id: uid(), type: "wait", mode: "delay", amount: 1, unit: "days" }) },
   { id: "task", label: "Create a task", icon: "check", hint: "For you or the rep", make: () => ({ id: uid(), type: "task", title: "Call {{name}}", days: 0 }) },
   { id: "notify", label: "Alert the owner", icon: "alert", hint: "Log and email you", make: () => ({ id: uid(), type: "notify", message: "" }) },
-  { id: "stage", label: "Move to a stage", icon: "pipeline", hint: "Change the job stage", make: () => ({ id: uid(), type: "stage", stage: "contacted" }) },
+  { id: "stage", label: "Move to a stage", icon: "pipeline", hint: "Change the deal stage", make: () => ({ id: uid(), type: "stage", stage: "contacted" }) },
   { id: "tag", label: "Add or remove a tag", icon: "tag", hint: "On the contact", make: () => ({ id: uid(), type: "tag", tag: "" }) },
   { id: "assign", label: "Assign a rep", icon: "users", hint: "Round robin", make: () => ({ id: uid(), type: "assign" }) },
   { id: "if", label: "If / else", icon: "chevron", hint: "Branch on a condition", make: () => ({ id: uid(), type: "if", cond: { field: "deal.value", op: "gt", value: "10000" }, then: [], else: [] }) },
@@ -102,13 +102,13 @@ export function StepBody({ step, set }: { step: Step; set: (s: Step) => void }) 
   );
   if (step.type === "notify") return (<div><Field label="Alert message" hint="Shown in Activity and emailed to your owner alert address."><input className="field" value={step.message} onChange={(e) => set({ ...step, message: e.target.value })} /></Field><Tags onPick={(t) => set({ ...step, message: step.message + t })} /></div>);
   if (step.type === "log") return (<Field label="Note"><input className="field" value={step.message} onChange={(e) => set({ ...step, message: e.target.value })} /></Field>);
-  if (step.type === "stage") return (<Field label="Move the job to"><select className="field" value={step.stage} onChange={(e) => set({ ...step, stage: e.target.value })}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></Field>);
+  if (step.type === "stage") return (<Field label="Move the deal to"><select className="field" value={step.stage} onChange={(e) => set({ ...step, stage: e.target.value })}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></Field>);
   if (step.type === "tag") return (
     <div className="flex flex-wrap items-center gap-2 text-sm"><select className="field !w-auto !py-2" value={step.remove ? "remove" : "add"} onChange={(e) => set({ ...step, remove: e.target.value === "remove" })}><option value="add">Add tag</option><option value="remove">Remove tag</option></select>
       <input className="field !w-48 !py-2" value={step.tag} onChange={(e) => set({ ...step, tag: e.target.value.toLowerCase() })} placeholder="e.g. hot-lead" /></div>
   );
-  if (step.type === "assign") return <p className="text-sm text-muted">Gives the job to the next rep in turn (from Settings → Team). Skipped if a rep is already set.</p>;
-  if (step.type === "noshow") return <p className="text-sm text-muted">Marks the visit as a no-show and moves the job back to Contacted.</p>;
+  if (step.type === "assign") return <p className="text-sm text-muted">Gives the deal to the next rep in turn (from Settings → Team). Skipped if a rep is already set.</p>;
+  if (step.type === "noshow") return <p className="text-sm text-muted">Marks the meeting as a no-show and moves the deal back to Contacted.</p>;
   if (step.type === "wait") {
     const mode = step.mode;
     return (

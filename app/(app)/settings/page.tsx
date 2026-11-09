@@ -7,6 +7,7 @@ import { isDemo } from "@/lib/config";
 import { toCsv } from "@/lib/csv";
 import { useStatus } from "@/lib/status";
 import { CustomizeCard } from "@/components/CustomizeCard";
+import { PipelinesCard } from "@/components/PipelinesCard";
 
 function Copy({ label, hint, value }: { label: string; hint: string; value: string }) {
   const { toast } = useCrm();
@@ -89,6 +90,7 @@ export default function SettingsPage() {
         </form>
       </Card>
 
+      <PipelinesCard />
       <CustomizeCard />
 
       <Card>

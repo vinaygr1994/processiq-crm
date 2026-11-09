@@ -1,6 +1,6 @@
 import type { Stage } from "./types";
 
-/** The Lead-to-Job pipeline for home renovation: from first enquiry to a reviewed, finished job. */
+/** Legacy stage list kept for older code paths. Pipelines now live in lib/pipelines.ts. */
 export const STAGES: { id: Stage; label: string; hint: string; dot: string; step: number }[] = [
   { id: "new", label: "New lead", hint: "Just came in", dot: "bg-iris", step: 0 },
   { id: "contacted", label: "Contacted", hint: "First reply done", dot: "bg-sky-500", step: 1 },
@@ -17,7 +17,7 @@ export const stageLabel = (s: Stage) => STAGES.find((x) => x.id === s)?.label ??
 export const isOpen = (s: Stage) => !["won", "completed", "lost"].includes(s);
 export const isActive = (s: Stage) => s !== "lost" && s !== "completed";
 
-export const PROJECTS = ["Kitchen remodel", "Bathroom remodel", "Basement finishing", "Home addition", "Whole-home renovation", "Roofing / exterior", "Flooring", "Other"];
+export const PROJECTS = ["General enquiry", "Consultation", "Pricing or quote", "Booking", "Membership", "Partnership", "Other"];
 export const BUDGETS = ["Under $10k", "$10–30k", "$30–60k", "$60–100k", "$100k+", "Not sure yet"];
-export const SOURCES = ["Google Ads", "Facebook / Instagram", "Website form", "Referral", "Angi / HomeAdvisor", "Yelp / Houzz", "Repeat customer", "Walk-in / other"];
-export const LOST_REASONS = ["Went with another contractor", "Price too high", "Project postponed", "No response", "Out of our service area", "Other"];
+export const SOURCES = ["Website form", "Google Ads", "Google search", "Facebook / Instagram", "Referral", "Phone call", "Email", "Walk-in", "Event", "Repeat customer", "Other"];
+export const LOST_REASONS = ["Chose a competitor", "Price too high", "Not the right time", "No response", "Not a good fit", "Out of our area", "Other"];

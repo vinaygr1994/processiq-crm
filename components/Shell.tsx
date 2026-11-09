@@ -15,7 +15,9 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: str
   { title: "CRM", items: [
     { href: "/", label: "Today", icon: "today" },
     { href: "/contacts", label: "Contacts", icon: "users" },
-    { href: "/pipeline", label: "Jobs", icon: "pipeline" },
+    { href: "/pipeline", label: "Deals", icon: "pipeline" },
+    { href: "/companies", label: "Companies", icon: "building" },
+    { href: "/reports", label: "Reports", icon: "chart" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
   ] },
   { title: "Bookings", items: [

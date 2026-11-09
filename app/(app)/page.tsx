@@ -112,14 +112,14 @@ export default function TodayPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="New leads (7 days)" value={String(v.leads7.length)} sub={`${data.deals.length} jobs in total`} href="/pipeline" />
+        <Kpi label="New leads (7 days)" value={String(v.leads7.length)} sub={`${data.deals.length} deals in total`} href="/pipeline" />
         <Kpi label="Average first reply" value={replyText} sub="Sent automatically" href="/automations" />
         <Kpi label="Visits coming up" value={String(v.upcoming.length)} sub={v.upcoming[0] ? `Next: ${new Date(v.upcoming[0].starts_at).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}` : "None booked"} href="/pipeline" />
         <Kpi label="Quotes out" value={money(v.quotedSum)} sub={`${v.quoted.length} waiting for a decision`} href="/pipeline" />
-        <Kpi label="Revenue won" value={money(v.wonSum)} sub={`${v.won.length} job${v.won.length === 1 ? "" : "s"}`} />
+        <Kpi label="Revenue won" value={money(v.wonSum)} sub={`${v.won.length} deal${v.won.length === 1 ? "" : "s"}`} />
         <Kpi label="Messages sent for you" value={String(v.sent)} sub="No one had to remember" href="/automations" />
         <Kpi label="To do today" value={String(dueNow.length)} sub={v.overdue.length ? `${v.overdue.length} overdue` : "All on track"} />
-        <Kpi label="Needs attention" value={String(v.stale.length)} sub="Jobs gone quiet" />
+        <Kpi label="Needs attention" value={String(v.stale.length)} sub="Deals gone quiet" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
@@ -129,7 +129,7 @@ export default function TodayPage() {
             {v.funnel.map((f) => (
               <li key={f.id} className="grid grid-cols-[110px_1fr_28px] items-center gap-3 text-sm sm:grid-cols-[130px_1fr_28px]">
                 <span className="font-medium text-ink">{f.label}</span>
-                <span className="h-2.5 overflow-hidden rounded-full bg-cloud"><span className={`block h-full rounded-full ${f.dot}`} style={{ width: `${(f.n / maxN) * 100}%` }} /></span>
+                <span className="h-2.5 overflow-hidden rounded-full bg-cloud"><span className={`block h-full rounded-full ${f.kind === "won" ? "bg-emerald-500" : f.kind === "lost" ? "bg-slate-400" : "bg-teal"}`} style={{ width: `${(f.n / maxN) * 100}%` }} /></span>
                 <span className="text-right font-semibold text-ink">{f.n}</span>
               </li>
             ))}
@@ -195,7 +195,7 @@ export default function TodayPage() {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Gone quiet</h2><Badge tone="sun">{v.stale.length}</Badge></div>
-            {v.stale.length === 0 ? <p className="text-muted">Every job has moved recently.</p> : (
+            {v.stale.length === 0 ? <p className="text-muted">Every deal has moved recently.</p> : (
               <ul className="space-y-2.5">{v.stale.map(({ deal, days }) => (
                 <li key={deal.id}><Link href={`/pipeline?deal=${deal.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 transition hover:bg-cloud">
                   <span className="min-w-0"><span className="block truncate font-semibold text-ink">{contactById.get(deal.contact_id ?? "")?.name ?? deal.title}</span><span className="block truncate text-[13px] text-muted">{deal.project} · {money(deal.value)}</span></span>
@@ -205,7 +205,7 @@ export default function TodayPage() {
           </Card>
           <Card className="!border-transparent bg-gradient-to-br from-white to-iris-t/50">
             <div className="mb-2 flex items-center gap-2"><Icon name="sparkle" className="size-5 text-iris" /><h2 className="text-lg font-semibold">AI helper</h2></div>
-            {!ai ? (<><p className="mb-4 text-muted">Get three quick suggestions based on your tasks and jobs.</p><AiButton onClick={suggest} busy={aiBusy}>What should I do today?</AiButton></>) : (
+            {!ai ? (<><p className="mb-4 text-muted">Get three quick suggestions based on your tasks and deals.</p><AiButton onClick={suggest} busy={aiBusy}>What should I do today?</AiButton></>) : (
               <>
                 <ul className="mb-3 space-y-2.5">{ai.items.map((x, i) => <li key={i} className="flex gap-2.5"><span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-iris text-[11px] font-bold text-white">{i + 1}</span><span className="text-ink">{x}</span></li>)}</ul>
                 {!ai.live && <p className="mb-3 text-[13px] text-muted">Sample suggestions. Add an Anthropic API key for personalised ones.</p>}

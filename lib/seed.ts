@@ -8,8 +8,10 @@ const ahead = (ms: number) => new Date(Date.now() + ms).toISOString();
 const at = (days: number, hour: number, mins = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, mins, 0, 0); return d.toISOString(); };
 
 export function seedRows(): Rows {
+  const CO: Record<string, string> = { c1: "Collins Dental Studio", c2: "Okafor Physiotherapy", c3: "Nair Aesthetics", c4: "Becker Fitness Club", c5: "Park & Co. Realty", c6: "Webb Consulting", c7: "Johnson Wellness Spa" };
+  const day = (n: number) => new Date(Date.now() + n * D).toISOString().slice(0, 10);
   const c = (id: string, name: string, email: string, phone: string, source: string, age: number) =>
-    ({ id, name, email, phone, company: "", tags: ["homeowner"], source, unsubscribed: false, created_at: ago(age) });
+    ({ id, name, email, phone, company: CO[id] ?? "", tags: ["customer"], source, unsubscribed: false, created_at: ago(age) });
   const deal = (o: Partial<Rows["deals"][number]> & Pick<Rows["deals"][number], "id" | "title" | "stage" | "contact_id" | "created_at">): Rows["deals"][number] => ({
     value: 0, source: "", project: "", budget: "", address: "", rep: "", lost_reason: "", stage_at: o.created_at, quote_sent_at: null, ...o,
   });
@@ -24,25 +26,26 @@ export function seedRows(): Rows {
       c("c7", "Ava Johnson", "ava@johnson.example", "555-0117", "Referral", 50 * D),
     ],
     deals: [
-      deal({ id: "d1", title: "Kitchen remodel · Sarah Collins", stage: "new", contact_id: "c1", project: "Kitchen remodel", budget: "$30–60k", source: "Google Ads", address: "San Diego, CA", rep: "Maria", created_at: ago(10 * M) }),
-      deal({ id: "d2", title: "Bathroom remodel · James Okafor", stage: "visit_booked", contact_id: "c2", project: "Bathroom remodel", budget: "$10–30k", source: "Website form", address: "La Mesa, CA", rep: "Dan", created_at: ago(3 * D), stage_at: ago(2 * D) }),
-      deal({ id: "d3", title: "Basement finishing · Priya Nair", stage: "visit_done", contact_id: "c3", project: "Basement finishing", budget: "$30–60k", source: "Referral", address: "Chula Vista, CA", rep: "Maria", created_at: ago(8 * D), stage_at: ago(1 * D) }),
-      deal({ id: "d4", title: "Whole-home renovation · Tom Becker", stage: "quoted", contact_id: "c4", value: 42000, project: "Whole-home renovation", budget: "$100k+", source: "Facebook / Instagram", address: "Carlsbad, CA", rep: "Maria", created_at: ago(14 * D), stage_at: ago(6 * D), quote_sent_at: ago(6 * D) }),
-      deal({ id: "d5", title: "Kitchen remodel · Linda Park", stage: "won", contact_id: "c5", value: 28500, project: "Kitchen remodel", budget: "$30–60k", source: "Google Ads", address: "Encinitas, CA", rep: "Dan", created_at: ago(30 * D), stage_at: ago(9 * D) }),
-      deal({ id: "d6", title: "Home addition · Marcus Webb", stage: "lost", contact_id: "c6", value: 64000, project: "Home addition", budget: "$60–100k", source: "Yelp / Houzz", address: "Poway, CA", rep: "Dan", lost_reason: "Price too high", created_at: ago(40 * D), stage_at: ago(20 * D) }),
-      deal({ id: "d7", title: "Roofing / exterior · Ava Johnson", stage: "completed", contact_id: "c7", value: 15200, project: "Roofing / exterior", budget: "$10–30k", source: "Referral", address: "El Cajon, CA", rep: "Maria", created_at: ago(50 * D), stage_at: ago(2 * D) }),
+      deal({ id: "d1", title: "Patient booking system · Collins Dental", stage: "new", contact_id: "c1", value: 4800, project: "New customer", budget: "", source: "Google Ads", address: "Toronto, ON", rep: "Maria", priority: "high", close_date: day(21), created_at: ago(10 * M) }),
+      deal({ id: "d2", title: "Clinic CRM setup · Okafor Physio", stage: "visit_booked", contact_id: "c2", value: 7200, project: "Consulting", budget: "", source: "Website form", address: "Mississauga, ON", rep: "Dan", priority: "medium", close_date: day(14), created_at: ago(3 * D), stage_at: ago(2 * D) }),
+      deal({ id: "d3", title: "Marketing automation · Nair Aesthetics", stage: "qualified", contact_id: "c3", value: 12500, project: "New customer", budget: "", source: "Referral", address: "Vancouver, BC", rep: "Maria", priority: "high", close_date: day(30), created_at: ago(8 * D), stage_at: ago(1 * D) }),
+      deal({ id: "d4", title: "Membership growth plan · Becker Fitness", stage: "quoted", contact_id: "c4", value: 42000, project: "Upgrade", budget: "", source: "Facebook / Instagram", address: "Calgary, AB", rep: "Maria", priority: "medium", close_date: day(9), created_at: ago(14 * D), stage_at: ago(6 * D), quote_sent_at: ago(6 * D) }),
+      deal({ id: "d8", title: "Annual renewal · Park & Co. Realty", stage: "negotiation", contact_id: "c5", value: 18000, project: "Renewal", budget: "", source: "Repeat customer", address: "New York, NY", rep: "Dan", priority: "low", close_date: day(-3), created_at: ago(20 * D), stage_at: ago(4 * D) }),
+      deal({ id: "d5", title: "Website and booking page · Park & Co.", stage: "won", contact_id: "c5", value: 28500, project: "New customer", budget: "", source: "Google Ads", address: "New York, NY", rep: "Dan", close_date: day(-9), created_at: ago(30 * D), stage_at: ago(9 * D) }),
+      deal({ id: "d6", title: "Sales pipeline rebuild · Webb Consulting", stage: "lost", contact_id: "c6", value: 64000, project: "Consulting", budget: "", source: "Event", address: "London, UK", rep: "Dan", lost_reason: "Price too high", created_at: ago(40 * D), stage_at: ago(20 * D) }),
+      deal({ id: "d7", title: "Client retention program · Johnson Spa", stage: "won", contact_id: "c7", value: 15200, project: "Upgrade", budget: "", source: "Referral", address: "Dublin, IE", rep: "Maria", close_date: day(-2), created_at: ago(50 * D), stage_at: ago(2 * D) }),
     ],
     visits: [
       { id: "v2", deal_id: "d2", contact_id: "c2", rep: "Dan", starts_at: ahead(30 * H), status: "scheduled", priority: "", result: "", created_at: ago(2 * D) },
-      { id: "v3", deal_id: "d3", contact_id: "c3", rep: "Maria", starts_at: ago(1 * D + 2 * H), status: "done", priority: "hot", result: "Walls are dry. Wants a bar area and egress window. Decision maker is Priya.", created_at: ago(5 * D) },
-      { id: "v4", deal_id: "d4", contact_id: "c4", rep: "Maria", starts_at: ago(9 * D), status: "done", priority: "warm", result: "Full gut of kitchen and two baths. Needs phased schedule.", created_at: ago(12 * D) },
+      { id: "v3", deal_id: "d3", contact_id: "c3", rep: "Maria", starts_at: ago(1 * D + 2 * H), status: "done", priority: "hot", result: "Wants automated reminders and online booking. Decision maker is Priya, budget approved for Q1.", created_at: ago(5 * D) },
+      { id: "v4", deal_id: "d4", contact_id: "c4", rep: "Maria", starts_at: ago(9 * D), status: "done", priority: "warm", result: "Three locations, needs member onboarding emails and a win-back journey. Wants to start next month.", created_at: ago(12 * D) },
     ],
     autolog: [
       { id: "l1", deal_id: "d4", kind: "Quote", message: "Quote for $42,000 sent to Tom Becker", tone: "info", key: "quote:d4", created_at: ago(6 * D) },
       { id: "l2", deal_id: "d4", kind: "Quote", message: "Day-2 quote follow-up sent", tone: "info", key: "q2:d4", created_at: ago(4 * D) },
       { id: "l3", deal_id: "d4", kind: "Quote", message: "Day-5 quote follow-up sent", tone: "info", key: "q5:d4", created_at: ago(1 * D) },
       { id: "l4", deal_id: "d5", kind: "Won", message: "Contract signed · Closed Won $28,500", tone: "won", key: "won:d5", created_at: ago(9 * D) },
-      { id: "l5", deal_id: "d1", kind: "Lead", message: "New lead from Google Ads: Sarah Collins, Kitchen remodel", tone: "info", key: "lead:d1", created_at: ago(10 * M) },
+      { id: "l5", deal_id: "d1", kind: "Lead", message: "New lead from Google Ads: Sarah Collins, Collins Dental Studio", tone: "info", key: "lead:d1", created_at: ago(10 * M) },
       { id: "l6", deal_id: "d1", kind: "Routing", message: "Duplicate check passed · assigned to Maria by round robin", tone: "info", key: "route:d1", created_at: ago(10 * M) },
       { id: "l7", deal_id: "d1", kind: "Auto", message: "Speed-to-lead email sent in 38 seconds", tone: "info", key: "speed:d1", created_at: ago(9 * M) },
       { id: "l8", deal_id: "d1", kind: "Task", message: "Call task created for Maria, due in 15 min", tone: "info", key: "calltask:d1", created_at: ago(9 * M) },
@@ -85,7 +88,7 @@ export function seedRows(): Rows {
     workflows: STARTERS.map((w) => ({ ...w, id: "wf-" + w.template_id, active: true, activated_at: new Date().toISOString(), created_at: new Date().toISOString() })),
     workflow_runs: [],
     settings: [
-      { id: "s1", business_name: "Greenleaf Renovations", sender_name: "Maria from Greenleaf", reply_to: "", address: "123 Main St, San Diego, CA", signature: "Maria\nGreenleaf Renovations", reps: ["Maria", "Dan"], owner_email: "", review_link: "https://g.page/r/your-review-link", booking_link: "", automations_off: [], rr_index: 1, timezone: "America/Toronto", starters_installed: true, intake_key: "demo-intake-key", stage_labels: {}, custom_fields: [], created_at: ago(30 * D) },
+      { id: "s1", business_name: "Northstar Studio", sender_name: "Maria from Northstar", reply_to: "", address: "100 King St W, Toronto, ON", signature: "Maria\nNorthstar Studio", reps: ["Maria", "Dan"], owner_email: "", review_link: "https://g.page/r/your-review-link", booking_link: "", automations_off: [], rr_index: 1, timezone: "America/Toronto", starters_installed: true, intake_key: "demo-intake-key", stage_labels: {}, custom_fields: [], created_at: ago(30 * D) },
     ],
   };
 }

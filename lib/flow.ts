@@ -9,7 +9,11 @@ const digits = (s: string) => s.replace(/\D/g, "");
 const whenStr = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const money0 = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
 
-export interface LeadForm { name: string; phone: string; email: string; project: string; budget: string; source: string; address: string }
+export interface LeadForm {
+  name: string; phone: string; email: string; project: string; budget: string; source: string; address: string;
+  /** Optional deal details (any industry). */
+  company?: string; title?: string; value?: number; pipeline?: string; stage?: string; close_date?: string; priority?: string; rep?: string; contactId?: string;
+}
 
 /**
  * What happens when YOU do something (add a lead, book a visit, send a quote…).
@@ -28,19 +32,21 @@ export function useFlow() {
 
   async function newLead(f: LeadForm): Promise<Deal | null> {
     const email = f.email.trim().toLowerCase(), ph = digits(f.phone);
-    const existing = dataRef.current.contacts.find((c) => (email && c.email.toLowerCase() === email) || (ph.length >= 7 && digits(c.phone) === ph));
+    const existing = (f.contactId ? dataRef.current.contacts.find((c) => c.id === f.contactId) : undefined)
+      ?? dataRef.current.contacts.find((c) => (email && c.email.toLowerCase() === email) || (ph.length >= 7 && digits(c.phone) === ph));
     let contact = existing;
     if (!contact) {
-      const created = await add("contacts", { name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), company: "", tags: ["homeowner"], source: f.source, unsubscribed: false } as never);
+      const created = await add("contacts", { name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), company: (f.company ?? "").trim(), tags: ["lead"], source: f.source, unsubscribed: false } as never);
       if (!created) return null;
       contact = created;
     }
     const deal = await add("deals", {
-      title: `${f.project} · ${contact.name}`, value: 0, stage: "new", contact_id: contact.id, source: f.source, project: f.project, budget: f.budget,
-      address: f.address.trim(), rep: "", lost_reason: "", stage_at: nowIso(), quote_sent_at: null, created_at: nowIso(),
+      title: f.title?.trim() || `${f.project || "New deal"} · ${contact.name}`, value: f.value ?? 0, stage: f.stage || "new", contact_id: contact.id, source: f.source, project: f.project, budget: f.budget,
+      address: f.address.trim(), rep: f.rep ?? "", lost_reason: "", stage_at: nowIso(), quote_sent_at: null, created_at: nowIso(),
+      pipeline: f.pipeline || "default", close_date: f.close_date || null, priority: f.priority ?? "",
     } as never);
     if (!deal) return null;
-    await log("Lead", `New lead from ${f.source}: ${contact.name}, ${f.project}${existing ? " · linked to existing contact" : ""}`, "info", deal.id);
+    await log("Lead", `New deal from ${f.source}: ${contact.name}${f.project ? `, ${f.project}` : ""}${existing ? " · linked to existing contact" : ""}`, "info", deal.id);
     void run();
     return deal;
   }
@@ -87,21 +93,21 @@ export function useFlow() {
     void run();
   }
 
-  async function markWon(deal: Deal, amount?: number) {
+  async function markWon(deal: Deal, amount?: number, stage = "won") {
     const value = amount ?? deal.value;
-    await setStage(deal, "won", { value });
-    await log("Won", `Contract signed · Closed Won ${money0(value)}`, "won", deal.id);
+    await setStage(deal, stage, { value });
+    await log("Won", `Closed won · ${money0(value)}`, "won", deal.id);
     void run();
   }
 
   async function complete(deal: Deal) {
     await setStage(deal, "completed");
-    await log("Job", "Job marked complete", "won", deal.id);
+    await log("Won", "Marked complete", "won", deal.id);
     void run();
   }
 
-  async function markLost(deal: Deal, reason: string) {
-    await setStage(deal, "lost", { lost_reason: reason });
+  async function markLost(deal: Deal, reason: string, stage = "lost") {
+    await setStage(deal, stage, { lost_reason: reason });
     await log("Lost", `Marked lost: ${reason}`, "warn", deal.id);
     void run();
   }

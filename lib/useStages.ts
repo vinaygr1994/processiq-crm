@@ -1,15 +1,16 @@
 "use client";
 import { useMemo } from "react";
 import { useCrm } from "./store";
-import { STAGES } from "./stages";
+import { pipelinesOf, type Pipeline } from "./pipelines";
 
-/** The pipeline stages with the account's own names applied. Stage ids never change, so workflows keep working. */
+/** All pipelines, plus the main pipeline's stages and a name lookup across every pipeline. */
 export function useStages() {
   const { settings } = useCrm();
-  const labels = settings?.stage_labels;
   return useMemo(() => {
-    const list = STAGES.map((s) => ({ ...s, label: labels?.[s.id]?.trim() || s.label }));
-    const name = (id: string) => list.find((s) => s.id === id)?.label ?? id;
-    return { stages: list, name };
-  }, [labels]);
+    const pipelines: Pipeline[] = pipelinesOf(settings);
+    const stages = pipelines[0].stages;
+    const all = pipelines.flatMap((p) => p.stages);
+    const name = (id: string) => all.find((s) => s.id === id)?.label ?? id.replace(/_/g, " ");
+    return { stages, name, pipelines };
+  }, [settings]);
 }
