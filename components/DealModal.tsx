@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Icon } from "./Icon";
 import { Avatar, Badge, Button, ConfirmModal, Field, Modal } from "./ui";
+import { RelatedRecords } from "./RecordModal";
 import { BookVisitModal, LostModal, QuoteModal, VisitResultModal } from "./flowModals";
 import { useCrm } from "@/lib/store";
 import { useFlow } from "@/lib/flow";
@@ -18,7 +19,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday:
 const toneOf = { info: "bg-teal-t text-teal-d", warn: "bg-sun-t text-[#9a5a00]", won: "bg-emerald-50 text-emerald-700", skip: "bg-cloud text-muted" } as const;
 
 export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => void }) {
-  const { data, settings, update, remove, removeMany, add, toast } = useCrm();
+  const { data, settings, update, remove, removeMany, add, toast, can, team } = useCrm();
   const flow = useFlow();
   const { pipelines } = useStages();
   const deal = data.deals.find((d) => d.id === dealId);
@@ -122,7 +123,7 @@ export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="Amount"><input className="field" inputMode="decimal" value={f.value} onChange={(e) => setF({ ...f, value: e.target.value })} /></Field>
                       <Field label="Close date"><input type="date" className="field" value={f.close_date} onChange={(e) => setF({ ...f, close_date: e.target.value })} /></Field>
-                      <Field label="Owner"><input className="field" list="deal-owners" value={f.rep} onChange={(e) => setF({ ...f, rep: e.target.value })} /><datalist id="deal-owners">{(settings?.reps ?? []).map((r) => <option key={r} value={r} />)}</datalist></Field>
+                      <Field label="Owner"><select className="field" value={f.rep} disabled={!can("assign")} onChange={(e) => setF({ ...f, rep: e.target.value })}><option value="">Unassigned</option>{[...new Set([...team, f.rep].filter(Boolean))].map((r) => <option key={r} value={r}>{r}</option>)}</select></Field>
                       <Field label="Priority"><select className="field" value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value })}><option value="">None</option>{PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></Field>
                       <Field label="Interested in"><input className="field" list="deal-int" value={f.project} onChange={(e) => setF({ ...f, project: e.target.value })} /><datalist id="deal-int">{interestsOf(settings).map((i) => <option key={i} value={i} />)}</datalist></Field>
                       <Field label="Source"><select className="field" value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>{[...new Set([f.source, ...SOURCES])].filter(Boolean).map((s) => <option key={s}>{s}</option>)}</select></Field>
@@ -149,6 +150,7 @@ export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => 
                   </Link>
                 ) : <p className="text-sm text-muted">No contact linked.</p>}
               </section>
+              <RelatedRecords dealId={deal.id} />
               {visits.length > 0 && (
                 <section>
                   <h3 className="mb-2 text-sm font-semibold text-ink">Meetings</h3>
@@ -194,7 +196,7 @@ export function DealModal({ dealId, onClose }: { dealId: string; onClose: () => 
           </div>
 
           <div className="flex items-center justify-between border-t border-line pt-4">
-            <Button size="sm" variant="danger" icon="trash" onClick={() => setSub("delete")}>Delete deal</Button>
+            {can("delete") ? <Button size="sm" variant="danger" icon="trash" onClick={() => setSub("delete")}>Delete deal</Button> : <span />}
             {contact?.email && <Link href={`/marketing/send?to=${contact.id}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-teal-d hover:underline"><Icon name="mail" className="size-4" />Email {contact.name.split(" ")[0]}</Link>}
           </div>
         </div>

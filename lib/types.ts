@@ -10,6 +10,8 @@ export interface Contact {
   tags: string[];
   source: string;
   unsubscribed: boolean;
+  /** Record owner (team member name). Migration 012. */
+  owner?: string;
   custom?: Record<string, string>;
   created_at: string;
 }
@@ -183,6 +185,12 @@ export interface SegmentRule {
 export interface Segment { id: string; name: string; match: "all" | "any"; rules: SegmentRule[]; created_at: string }
 export interface FormDef { id: string; name: string; slug: string; status: "draft" | "published"; config: unknown; created_at: string }
 export interface FormSubmission { id: string; form_id: string; contact_id: string | null; data: Record<string, string>; created_at: string }
+export type Role = "owner" | "admin" | "manager" | "rep" | "viewer";
+export interface Member { id: string; org_id: string; user_id: string | null; email: string; name: string; role: Exclude<Role, "owner">; status: "invited" | "active" | "disabled"; own_only: boolean; created_at: string }
+export type FieldType = "text" | "textarea" | "number" | "currency" | "date" | "datetime" | "select" | "checkbox" | "email" | "phone" | "url";
+export interface ObjField { key: string; label: string; type: FieldType; options?: string[]; required?: boolean }
+export interface CrmObject { id: string; name: string; plural: string; icon: string; color: string; fields: ObjField[]; statuses: string[]; link_contact: boolean; link_deal: boolean; created_at: string }
+export interface CrmRecord { id: string; object_id: string; contact_id: string | null; deal_id: string | null; title: string; status: string; assigned_to: string; data: Record<string, string>; created_at: string }
 export interface Tables {
   workflows: Workflow;
   workflow_runs: WorkflowRun;
@@ -203,6 +211,9 @@ export interface Tables {
   bookings: Booking;
   plans: Plan;
   memberships: Membership;
+  org_members: Member;
+  objects: CrmObject;
+  records: CrmRecord;
 }
 export type TableName = keyof Tables;
 export type Rows = { [K in TableName]: Tables[K][] };

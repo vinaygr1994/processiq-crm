@@ -70,9 +70,16 @@ function QuickAdd({ onPick, block = false }: { onPick: (k: Quick) => void; block
 
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
-  const { ready, toasts, userEmail } = useCrm();
+  const { ready, toasts, userEmail, data, can, me } = useCrm();
+  const objNav = data.objects.map((o) => ({ href: `/objects/${o.id}`, label: o.plural, icon: o.icon || "note" }));
+  const sections = SECTIONS.map((s) => s.title === "CRM" ? { ...s, items: [...s.items.slice(0, 4), ...objNav, ...s.items.slice(4)] } : s);
+  const admin = [
+    ...(can("team") ? [{ href: "/team", label: "Team and permissions", icon: "users" }] : [{ href: "/team", label: "Team", icon: "users" }]),
+    ...(can("objects") ? [{ href: "/objects", label: "Custom objects", icon: "layers" }] : []),
+    ...(can("settings") ? [{ href: "/settings", label: "Settings", icon: "settings" }] : []),
+  ];
   const [quick, setQuick] = useState<Quick | null>(null);
-  const active = (h: string) => (h === "/" || h === "/marketing" || h === "/bookings" ? path === h : path.startsWith(h));
+  const active = (h: string) => (h === "/" || h === "/marketing" || h === "/bookings" || h === "/objects" ? path === h : path.startsWith(h));
   const [more, setMore] = useState(false);
 
   return (
@@ -81,7 +88,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <Link href="/" className="mb-6 px-2"><Logo /></Link>
         <div className="mb-5 px-1"><QuickAdd block onPick={setQuick} /></div>
         <nav className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pb-3" aria-label="Main">
-          {SECTIONS.map((s) => (
+          {[...sections, { title: "Admin", items: admin }].map((s) => (
             <div key={s.title}>
               <div className="mb-1 px-3.5 text-[12px] font-semibold text-muted">{s.title}</div>
               <div className="flex flex-col gap-0.5">
@@ -94,14 +101,10 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
             </div>
           ))}
-          <Link href="/settings" aria-current={active("/settings") ? "page" : undefined}
-            className={`mt-auto flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-semibold transition ${active("/settings") ? "bg-teal-t text-teal-d" : "text-body hover:bg-cloud hover:text-ink"}`}>
-            <Icon name="settings" className="size-[19px]" /> Settings
-          </Link>
         </nav>
         <div className="rounded-2xl bg-cloud px-3.5 py-3 text-[13px] text-muted">
           <div className="truncate font-semibold text-ink">{userEmail || "Signed in"}</div>
-          {isDemo && <div className="mt-0.5">Demo mode</div>}
+          <div className="mt-0.5">{me.role === "owner" ? "Owner" : me.role === "rep" ? "Sales rep" : me.role === "viewer" ? "Read-only" : me.role[0].toUpperCase() + me.role.slice(1)}{isDemo ? " · Demo mode" : ""}</div>
         </div>
       </aside>
 
@@ -117,7 +120,8 @@ export function Shell({ children }: { children: ReactNode }) {
             <span><strong>Demo mode.</strong> You&apos;re looking at sample data saved only in this browser, and emails are not really sent. Connect Supabase to go live (see Settings).</span>
           </div>
         )}
-        {ready ? children : <div className="grid place-items-center py-32 text-teal"><Spinner className="size-8" /></div>}
+        {ready && me.role === "viewer" && <div className="mb-5 rounded-2xl bg-sun-t px-4 py-2.5 text-sm text-ink">You have read-only access. Ask the account owner if you need to make changes.</div>}
+        {ready && me.role !== "owner" && !can("settings") && path?.startsWith("/settings") ? <div className="rounded-3xl border border-line bg-white px-6 py-14 text-center"><h1 className="font-display text-xl font-semibold">Settings are for admins</h1><p className="mt-1 text-muted">Ask the account owner or an admin to change business settings.</p></div> : ready ? children : <div className="grid place-items-center py-32 text-teal"><Spinner className="size-8" /></div>}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
@@ -134,7 +138,7 @@ export function Shell({ children }: { children: ReactNode }) {
       {more && (
         <div className="fixed inset-0 z-50 bg-ink/40 lg:hidden" onClick={() => setMore(false)}>
           <div role="dialog" aria-label="All pages" className="anim-pop absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]" onClick={(e) => e.stopPropagation()}>
-            {[...SECTIONS, { title: "Account", items: [{ href: "/settings", label: "Settings", icon: "settings" }] }].map((s) => (
+            {[...sections, { title: "Admin", items: admin }].map((s) => (
               <div key={s.title} className="mb-4">
                 <div className="mb-2 text-[12px] font-semibold text-muted">{s.title}</div>
                 <div className="grid grid-cols-3 gap-2">

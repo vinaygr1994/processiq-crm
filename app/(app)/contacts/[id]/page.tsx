@@ -13,6 +13,7 @@ import { aiSummarize } from "@/lib/ai";
 import { dueLabel, isEmail, money, timeAgo, todayStr } from "@/lib/format";
 import { useStages } from "@/lib/useStages";
 import { CustomFields } from "@/components/CustomFields";
+import { RelatedRecords } from "@/components/RecordModal";
 import type { ActivityKind, Contact } from "@/lib/types";
 
 const KINDS: { id: ActivityKind; label: string; icon: string }[] = [
@@ -24,7 +25,7 @@ const KINDS: { id: ActivityKind; label: string; icon: string }[] = [
 export default function ContactPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { data, update, remove, removeMany, toast } = useCrm();
+  const { data, update, remove, removeMany, toast, can, team } = useCrm();
   const { name: stageName } = useStages();
   const flow = useFlow();
   const contact = data.contacts.find((c) => c.id === id);
@@ -121,6 +122,10 @@ export default function ContactPage() {
                     onKeyDown={(e) => (e.key === "Enter" || e.key === ",") && (e.preventDefault(), addTag())} onBlur={addTag} placeholder="+ add tag" aria-label="Add tag" />
                 </div>
               </div>
+              <label className="block"><span className="mb-1 block text-[13px] font-semibold text-muted">Contact owner</span>
+                <select className="field" value={contact.owner ?? ""} disabled={!can("assign")} onChange={(e) => { save({ owner: e.target.value }); toast(e.target.value ? `Assigned to ${e.target.value}` : "Unassigned"); }}>
+                  <option value="">Unassigned</option>{[...new Set([...team, contact.owner ?? ""].filter(Boolean))].map((n) => <option key={n}>{n}</option>)}
+                </select></label>
               <CustomFields on="contact" record={contact} />
               <label className="flex items-center gap-2.5 pt-1 text-sm">
                 <input type="checkbox" className="size-4 accent-[#0b8a8a]" checked={contact.unsubscribed} onChange={(e) => save({ unsubscribed: e.target.checked })} />
@@ -158,7 +163,8 @@ export default function ContactPage() {
             )}
           </Card>
           <ContactBookings contactId={contact.id} />
-          <Button variant="danger" size="sm" icon="trash" onClick={() => setModal("delete")}>Delete contact</Button>
+          <RelatedRecords contactId={contact.id} />
+          {can("delete") && <Button variant="danger" size="sm" icon="trash" onClick={() => setModal("delete")}>Delete contact</Button>}
         </div>
 
         <div className="space-y-6 lg:col-span-3">

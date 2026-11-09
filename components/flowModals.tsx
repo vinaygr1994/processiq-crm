@@ -10,13 +10,13 @@ import { PRIORITIES, interestsOf, lostStage, pipelineOf, pipelinesOf } from "@/l
 import type { Deal, Visit } from "@/lib/types";
 
 export function NewLeadModal({ onClose, onCreated, pipelineId }: { onClose: () => void; onCreated?: (d: Deal) => void; pipelineId?: string }) {
-  const { data, settings, toast } = useCrm();
+  const { data, settings, toast, team, me } = useCrm();
   const flow = useFlow();
   const pipelines = pipelinesOf(settings);
   const interests = interestsOf(settings);
   const [mode, setMode] = useState<"new" | "existing">("new");
   const [q, setQ] = useState("");
-  const [f, setF] = useState({ name: "", phone: "", email: "", company: "", contactId: "", title: "", project: interests[0] ?? "", value: "", pipeline: pipelineId ?? pipelines[0].id, stage: "", close_date: "", priority: "", rep: "", source: SOURCES[0], address: "", budget: "" });
+  const [f, setF] = useState({ name: "", phone: "", email: "", company: "", contactId: "", title: "", project: interests[0] ?? "", value: "", pipeline: pipelineId ?? pipelines[0].id, stage: "", close_date: "", priority: "", rep: me.role === "rep" ? me.name : "", source: SOURCES[0], address: "", budget: "" });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
@@ -72,7 +72,7 @@ export function NewLeadModal({ onClose, onCreated, pipelineId }: { onClose: () =
           <Field label="Expected close date"><input className="field" type="date" value={f.close_date} onChange={set("close_date")} /></Field>
           {pipelines.length > 1 && <Field label="Pipeline"><select className="field" value={pipe.id} onChange={(e) => setF({ ...f, pipeline: e.target.value, stage: "" })}>{pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           <Field label="Stage"><select className="field" value={f.stage || openStages[0]?.id} onChange={set("stage")}>{openStages.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></Field>
-          <Field label="Owner"><select className="field" value={f.rep} onChange={set("rep")}><option value="">Auto-assign</option>{(settings?.reps ?? []).map((r) => <option key={r}>{r}</option>)}</select></Field>
+          <Field label="Owner"><select className="field" value={f.rep} onChange={set("rep")}><option value="">{settings?.reps?.length ? "Auto-assign (round robin)" : "Unassigned"}</option>{team.map((r) => <option key={r}>{r}</option>)}</select></Field>
           <Field label="Priority"><select className="field" value={f.priority} onChange={set("priority")}><option value="">None</option>{PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></Field>
           <Field label="Source"><select className="field" value={f.source} onChange={set("source")}>{SOURCES.map((p) => <option key={p}>{p}</option>)}</select></Field>
           <Field label="Location (optional)"><input className="field" value={f.address} onChange={set("address")} placeholder="City or address" /></Field>
@@ -87,9 +87,9 @@ export function NewLeadModal({ onClose, onCreated, pipelineId }: { onClose: () =
 const localInput = (ms: number) => { const d = new Date(ms); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
 
 export function BookVisitModal({ deal, onClose, day }: { deal: Deal; onClose: () => void; day?: Date }) {
-  const { settings, toast } = useCrm();
+  const { settings, toast, team } = useCrm();
   const flow = useFlow();
-  const reps = settings?.reps ?? [];
+  const reps = team.length ? team : settings?.reps ?? [];
   const tomorrow10 = (() => { const d = day ? new Date(day) : new Date(nowMs() + 86400000); d.setHours(10, 0, 0, 0); return d.getTime(); })();
   const [when, setWhen] = useState(localInput(tomorrow10));
   const [rep, setRep] = useState(deal.rep || reps[0] || "");

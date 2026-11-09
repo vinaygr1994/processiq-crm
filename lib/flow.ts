@@ -36,7 +36,7 @@ export function useFlow() {
       ?? dataRef.current.contacts.find((c) => (email && c.email.toLowerCase() === email) || (ph.length >= 7 && digits(c.phone) === ph));
     let contact = existing;
     if (!contact) {
-      const created = await add("contacts", { name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), company: (f.company ?? "").trim(), tags: ["lead"], source: f.source, unsubscribed: false } as never);
+      const created = await add("contacts", { name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), company: (f.company ?? "").trim(), tags: ["lead"], source: f.source, unsubscribed: false, owner: f.rep ?? "" } as never);
       if (!created) return null;
       contact = created;
     }

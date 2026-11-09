@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Button, Card, ConfirmModal, Field, PageHeader } from "@/components/ui";
@@ -80,7 +81,7 @@ export default function SettingsPage() {
         <h2 className="mb-1 text-lg font-semibold">Team &amp; links</h2>
         <p className="mb-5 text-muted">Used by autopilot to assign leads, alert you and fill in your emails.</p>
         <form onSubmit={save} className="space-y-4">
-          <Field label="Your reps" hint="Comma separated. New leads are shared between them in turn."><input className="field" value={f.reps} onChange={set("reps")} placeholder="Maria, Dan" /></Field>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-cloud px-4 py-3"><span><span className="block font-semibold text-ink">Team members and lead assignment</span><span className="text-[13.5px] text-muted">{(settings?.reps ?? []).length ? `New leads go to ${(settings?.reps ?? []).join(", ")} in turn.` : "Invite people, set their permissions and choose who gets new leads."}</span></span><Link href="/team" className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-teal">Manage team</Link></div>
           <Field label="Owner alert email" hint="Where manager alerts go."><input className="field" type="email" value={f.owner_email} onChange={set("owner_email")} placeholder="you@yourbusiness.com" /></Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Google review link"><input className="field" type="url" value={f.review_link} onChange={set("review_link")} placeholder="https://g.page/r/..." /></Field>

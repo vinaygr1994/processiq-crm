@@ -20,7 +20,7 @@ const short = (d: string) => new Date(d + "T12:00:00").toLocaleDateString(undefi
 const compact = (n: number) => (n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `$${Math.round(n / 1000)}k` : money(n));
 
 function Board() {
-  const { data } = useCrm();
+  const { data, me, can, team, update, toast } = useCrm();
   const { pipelines } = useStages();
   const flow = useFlow();
   const router = useRouter();
@@ -30,7 +30,8 @@ function Board() {
   const pipe = pipelines.find((p) => p.id === pid) ?? pipelines[0];
   const [view, setView] = useState<"board" | "table">("board");
   const [q, setQ] = useState("");
-  const [owner, setOwner] = useState("");
+  const [owner, setOwner] = useState(() => (can("seeAll") ? "" : "_me"));
+  const [sel, setSel] = useState<string[]>([]);
   const [prio, setPrio] = useState("");
   const [showClosed, setShowClosed] = useState(true);
   const [sort, setSort] = useState<{ by: Sort; dir: 1 | -1 }>({ by: "created", dir: -1 });
@@ -41,19 +42,19 @@ function Board() {
   const [now] = useState(() => Date.now());
   const today = new Date(now).toISOString().slice(0, 10);
   const contacts = useMemo(() => new Map(data.contacts.map((c) => [c.id, c])), [data.contacts]);
-  const owners = [...new Set(data.deals.map((d) => d.rep).filter(Boolean))].sort();
+  const owners = [...new Set([...team, ...data.deals.map((d) => d.rep)].filter(Boolean))].sort();
 
   const deals = useMemo(() => {
     const s = q.trim().toLowerCase();
     return data.deals.filter((d) => {
       if (pipelineOf(d, pipelines).id !== pipe.id) return false;
-      if (owner && (owner === "_none" ? d.rep : d.rep !== owner)) return false;
+      if (owner && (owner === "_none" ? d.rep : owner === "_me" ? d.rep !== me.name : d.rep !== owner)) return false;
       if (prio && d.priority !== prio) return false;
       if (!s) return true;
       const c = d.contact_id ? contacts.get(d.contact_id) : null;
       return [d.title, d.project, d.source, c?.name ?? "", c?.company ?? "", c?.email ?? ""].some((v) => v.toLowerCase().includes(s));
     });
-  }, [data.deals, pipelines, pipe.id, owner, prio, q, contacts]);
+  }, [data.deals, pipelines, pipe.id, owner, prio, q, contacts, me.name]);
 
   const stats = useMemo(() => {
     const open = deals.filter((d) => columnOf(d, pipelines).kind === "open");
@@ -134,7 +135,7 @@ function Board() {
       <div className="flex flex-wrap items-center gap-2">
         {pipelines.length > 1 && <select className="field !h-10 !w-auto !py-0 font-semibold" aria-label="Pipeline" value={pipe.id} onChange={(e) => setPid(e.target.value)}>{pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
         <div className="relative min-w-[200px] flex-1 sm:max-w-xs"><Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" /><input className="field !h-10 !py-0 !pl-10" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search deals" aria-label="Search deals" /></div>
-        <select className="field !h-10 !w-auto !py-0" aria-label="Owner" value={owner} onChange={(e) => setOwner(e.target.value)}><option value="">All owners</option><option value="_none">Unassigned</option>{owners.map((o) => <option key={o}>{o}</option>)}</select>
+        <select className="field !h-10 !w-auto !py-0" aria-label="Owner" value={owner} onChange={(e) => setOwner(e.target.value)}><option value="">All owners</option><option value="_me">My deals</option><option value="_none">Unassigned</option>{owners.map((o) => <option key={o}>{o}</option>)}</select>
         <select className="field !h-10 !w-auto !py-0" aria-label="Priority" value={prio} onChange={(e) => setPrio(e.target.value)}><option value="">Any priority</option>{PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
         <label className="flex items-center gap-2 px-1 text-sm font-medium text-body"><input type="checkbox" className="size-4 accent-[#0b8a8a]" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />Show closed</label>
         <div className="ml-auto inline-flex rounded-full bg-white p-1 ring-1 ring-line" role="tablist" aria-label="View">
@@ -164,17 +165,27 @@ function Board() {
           </div>
         </div>
       ) : (
+        <>
+        {sel.length > 0 && (
+          <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl bg-ink px-4 py-2.5 text-sm text-white shadow-lg">
+            <span className="font-semibold">{sel.length} selected</span>
+            {can("assign") && <select className="h-9 rounded-full border-0 bg-white/10 px-3 text-sm font-semibold text-white [&>option]:text-ink" aria-label="Assign to" value="" onChange={async (e) => { const n = e.target.value === "_none" ? "" : e.target.value; for (const id of sel) await update("deals", id, { rep: n }); toast(`${sel.length} deal${sel.length === 1 ? "" : "s"} ${n ? `assigned to ${n}` : "unassigned"}`); setSel([]); }}><option value="" disabled>Assign to…</option><option value="_none">Nobody</option>{team.map((n) => <option key={n}>{n}</option>)}</select>}
+            {can("write") && <select className="h-9 rounded-full border-0 bg-white/10 px-3 text-sm font-semibold text-white [&>option]:text-ink" aria-label="Set priority" value="" onChange={async (e) => { for (const id of sel) await update("deals", id, { priority: e.target.value }); toast("Priority updated"); setSel([]); }}><option value="" disabled>Set priority…</option>{PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>}
+            <button onClick={() => setSel([])} className="ml-auto rounded-full px-3 py-1.5 font-semibold hover:bg-white/15">Clear</button>
+          </div>
+        )}
         <Card className="!p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-sm">
-              <thead className="border-b border-line bg-[#f8f9fc] text-left text-[13px] text-muted"><tr>{th("name", "Deal")}<th className="px-3 py-3 font-semibold">Contact</th>{th("stage", "Stage")}{th("value", "Amount", true)}{th("close", "Close date")}{th("owner", "Owner")}<th className="px-3 py-3 font-semibold">Source</th>{th("created", "Created")}</tr></thead>
+              <thead className="border-b border-line bg-[#f8f9fc] text-left text-[13px] text-muted"><tr><th className="w-10 py-3 pl-4"><input type="checkbox" aria-label="Select all" className="size-4 accent-[#0b8a8a]" checked={sorted.length > 0 && sorted.every((d) => sel.includes(d.id))} onChange={(e) => setSel(e.target.checked ? sorted.map((d) => d.id) : [])} /></th>{th("name", "Deal")}<th className="px-3 py-3 font-semibold">Contact</th>{th("stage", "Stage")}{th("value", "Amount", true)}{th("close", "Close date")}{th("owner", "Owner")}<th className="px-3 py-3 font-semibold">Source</th>{th("created", "Created")}</tr></thead>
               <tbody className="divide-y divide-line">
-                {sorted.length === 0 && <tr><td colSpan={8} className="px-5 py-8 text-center text-muted">No deals match.</td></tr>}
+                {sorted.length === 0 && <tr><td colSpan={9} className="px-5 py-8 text-center text-muted">No deals match.</td></tr>}
                 {sorted.map((d) => {
                   const c = d.contact_id ? contacts.get(d.contact_id) : null, st = columnOf(d, pipelines);
                   const overdue = d.close_date && d.close_date < today && st.kind === "open";
                   return (
-                    <tr key={d.id} className="cursor-pointer hover:bg-cloud" onClick={() => router.push(`/pipeline?deal=${d.id}`)}>
+                    <tr key={d.id} className={`cursor-pointer hover:bg-cloud ${sel.includes(d.id) ? "bg-teal-t/30" : ""}`} onClick={() => router.push(`/pipeline?deal=${d.id}`)}>
+                      <td className="py-3 pl-4" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Select ${d.title}`} className="size-4 accent-[#0b8a8a]" checked={sel.includes(d.id)} onChange={() => setSel(sel.includes(d.id) ? sel.filter((x) => x !== d.id) : [...sel, d.id])} /></td>
                       <td className="px-3 py-3"><div className="font-semibold text-ink">{d.title}</div>{d.project && <div className="text-[12.5px] text-muted">{d.project}</div>}</td>
                       <td className="px-3 py-3">{c ? <Link href={`/contacts/${c.id}`} onClick={(e) => e.stopPropagation()} className="hover:text-teal-d hover:underline">{c.name}</Link> : "–"}{c?.company && <div className="text-[12.5px] text-muted">{c.company}</div>}</td>
                       <td className="px-3 py-3"><Badge tone={st.kind === "won" ? "green" : st.kind === "lost" ? "gray" : "iris"}>{st.label}</Badge></td>
@@ -187,10 +198,11 @@ function Board() {
                   );
                 })}
               </tbody>
-              {sorted.length > 0 && <tfoot className="border-t border-line bg-[#f8f9fc] text-sm"><tr><td className="px-3 py-3 font-semibold" colSpan={3}>{sorted.length} deal{sorted.length === 1 ? "" : "s"}</td><td className="px-3 py-3 text-right font-semibold">{money(sorted.reduce((a, d) => a + (d.value || 0), 0))}</td><td colSpan={4} /></tr></tfoot>}
+              {sorted.length > 0 && <tfoot className="border-t border-line bg-[#f8f9fc] text-sm"><tr><td className="px-3 py-3 font-semibold" colSpan={4}>{sorted.length} deal{sorted.length === 1 ? "" : "s"}</td><td className="px-3 py-3 text-right font-semibold">{money(sorted.reduce((a, d) => a + (d.value || 0), 0))}</td><td colSpan={4} /></tr></tfoot>}
             </table>
           </div>
         </Card>
+        </>
       )}
 
       {adding && <NewLeadModal pipelineId={pipe.id} onClose={() => setAdding(false)} />}

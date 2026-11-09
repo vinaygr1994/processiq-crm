@@ -247,6 +247,7 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
         } else if (step.type === "assign" && deal && settings && settings.reps?.length && !deal.rep) {
           const rep = settings.reps[(settings.rr_index ?? 0) % settings.reps.length];
           await db.update("deals", deal.id, { rep } as Partial<Deal>); deal.rep = rep;
+          if (contact && !contact.owner) { await db.update("contacts", contact.id, { owner: rep }); contact.owner = rep; }
           await db.update("settings", settings.id, { rr_index: (settings.rr_index ?? 0) + 1 }); settings.rr_index = (settings.rr_index ?? 0) + 1;
           await log(deal, "Routing", `Assigned to ${rep} by round robin`);
         } else if (step.type === "noshow" && visit && visit.status === "scheduled") {

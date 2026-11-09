@@ -11,7 +11,7 @@ export function seedRows(): Rows {
   const CO: Record<string, string> = { c1: "Collins Dental Studio", c2: "Okafor Physiotherapy", c3: "Nair Aesthetics", c4: "Becker Fitness Club", c5: "Park & Co. Realty", c6: "Webb Consulting", c7: "Johnson Wellness Spa" };
   const day = (n: number) => new Date(Date.now() + n * D).toISOString().slice(0, 10);
   const c = (id: string, name: string, email: string, phone: string, source: string, age: number) =>
-    ({ id, name, email, phone, company: CO[id] ?? "", tags: ["customer"], source, unsubscribed: false, created_at: ago(age) });
+    ({ id, name, email, phone, company: CO[id] ?? "", tags: ["customer"], source, unsubscribed: false, owner: ["c2", "c5", "c6"].includes(id) ? "Dan" : "Maria", created_at: ago(age) });
   const deal = (o: Partial<Rows["deals"][number]> & Pick<Rows["deals"][number], "id" | "title" | "stage" | "contact_id" | "created_at">): Rows["deals"][number] => ({
     value: 0, source: "", project: "", budget: "", address: "", rep: "", lost_reason: "", stage_at: o.created_at, quote_sent_at: null, ...o,
   });
@@ -82,13 +82,31 @@ export function seedRows(): Rows {
       { id: "pl1", name: "10-class pack", kind: "pack", price: 180, sessions: 10, months: 6, active: true, created_at: ago(30 * D) },
       { id: "pl2", name: "Unlimited monthly", kind: "unlimited", price: 129, sessions: 0, months: 1, active: true, created_at: ago(30 * D) },
     ],
+    org_members: [
+      { id: "m1", org_id: "demo", user_id: "u1", email: "maria@northstar.example", name: "Maria", role: "manager", status: "active", own_only: false, created_at: ago(60 * D) },
+      { id: "m2", org_id: "demo", user_id: "u2", email: "dan@northstar.example", name: "Dan", role: "rep", status: "active", own_only: true, created_at: ago(45 * D) },
+      { id: "m3", org_id: "demo", user_id: null, email: "aisha@northstar.example", name: "Aisha", role: "rep", status: "invited", own_only: false, created_at: ago(1 * D) },
+    ],
+    objects: [
+      { id: "ob1", name: "Consultation", plural: "Consultations", icon: "calendar", color: "#5a5bef", link_contact: true, link_deal: true, created_at: ago(20 * D),
+        statuses: ["Requested", "Scheduled", "Completed", "No-show", "Cancelled"],
+        fields: [{ key: "date", label: "Date and time", type: "datetime", required: true }, { key: "type", label: "Consultation type", type: "select", options: ["In person", "Video call", "Phone"] }, { key: "concern", label: "Main concern", type: "textarea" }, { key: "fee", label: "Fee", type: "currency" }] },
+      { id: "ob2", name: "Class booking", plural: "Class bookings", icon: "users", color: "#ec5b7f", link_contact: true, link_deal: false, created_at: ago(15 * D),
+        statuses: ["Booked", "Attended", "No-show", "Cancelled"],
+        fields: [{ key: "class", label: "Class", type: "select", options: ["Strength", "Mobility", "HIIT", "Yoga"], required: true }, { key: "date", label: "Class date", type: "date", required: true }, { key: "trial", label: "Free trial", type: "checkbox" }] },
+    ],
+    records: [
+      { id: "r1", object_id: "ob1", contact_id: "c3", deal_id: "d3", title: "Initial consultation", status: "Scheduled", assigned_to: "Maria", data: { date: at(2, 11).slice(0, 16), type: "Video call", concern: "Wants automated reminders and online booking.", fee: "0" }, created_at: ago(3 * D) },
+      { id: "r2", object_id: "ob1", contact_id: "c1", deal_id: "d1", title: "Discovery consultation", status: "Requested", assigned_to: "", data: { type: "Phone" }, created_at: ago(1 * H) },
+      { id: "r3", object_id: "ob2", contact_id: "c4", deal_id: null, title: "Strength class", status: "Attended", assigned_to: "Dan", data: { class: "Strength", date: ago(2 * D).slice(0, 10), trial: "Yes" }, created_at: ago(4 * D) },
+    ],
     memberships: [
       { id: "ms1", contact_id: "c4", plan_id: "pl1", status: "active", credits: 7, starts_on: ago(12 * D).slice(0, 10), ends_on: ahead(170 * D).slice(0, 10), created_at: ago(12 * D) },
     ],
     workflows: STARTERS.map((w) => ({ ...w, id: "wf-" + w.template_id, active: true, activated_at: new Date().toISOString(), created_at: new Date().toISOString() })),
     workflow_runs: [],
     settings: [
-      { id: "s1", business_name: "Northstar Studio", sender_name: "Maria from Northstar", reply_to: "", address: "100 King St W, Toronto, ON", signature: "Maria\nNorthstar Studio", reps: ["Maria", "Dan"], owner_email: "", review_link: "https://g.page/r/your-review-link", booking_link: "", automations_off: [], rr_index: 1, timezone: "America/Toronto", starters_installed: true, intake_key: "demo-intake-key", stage_labels: {}, custom_fields: [], created_at: ago(30 * D) },
+      { id: "s1", business_name: "Northstar Studio", sender_name: "Sam from Northstar", reply_to: "", address: "100 King St W, Toronto, ON", signature: "Sam\nNorthstar Studio", reps: ["Maria", "Dan"], owner_email: "", review_link: "https://g.page/r/your-review-link", booking_link: "", automations_off: [], rr_index: 1, timezone: "America/Toronto", starters_installed: true, intake_key: "demo-intake-key", stage_labels: {}, custom_fields: [], created_at: ago(30 * D) },
     ],
   };
 }

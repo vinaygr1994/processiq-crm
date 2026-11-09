@@ -4,7 +4,8 @@ import { emailVars, renderDesign, type Design } from "./emailDesign";
 
 export interface MailIn { sb: SupabaseClient; ownerId?: string; to: string; subject: string; body: string; contactId?: string; marketing?: boolean; toOwner?: boolean; baseUrl: string; design?: Design; test?: boolean;
   /** Extra merge values (journeys add job and visit details). */ vars?: Record<string, string>;
-  /** The email log row id: turns on open and click tracking. */ trackId?: string }
+  /** The email log row id: turns on open and click tracking. */ trackId?: string;
+  /** A system email to any address (team invites). Only server code sets this. */ system?: boolean }
 export type MailOut = { ok: true } | { ok: false; code: number; error: string };
 
 /** Sends one email through Resend as the business. Used by the app, the workflow engine and the scheduler. */
@@ -17,7 +18,7 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
   const { data: s } = (await scope(o.sb.from("settings").select("*")).limit(1).maybeSingle()) as { data: Record<string, string> | null };
   type C = { id: string; email: string; unsubscribed: boolean; name: string; company: string };
   let contact = null as C | null;
-  if (o.test) {
+  if (o.test || o.system) {
     // A test goes only to the logged-in user (the route checks the address).
   } else if (o.toOwner) {
     if (!s?.owner_email || s.owner_email.toLowerCase() !== o.to.toLowerCase()) return { ok: false, code: 400, error: "Owner alert email isn't set in Settings." };
