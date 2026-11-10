@@ -32,27 +32,31 @@ export default function MarketingHome() {
 
   const actions: [string, string, string, string][] = [
     ["/marketing/send", "Send an email", "To one person, a list or everyone", "send"],
+    ["/mobile?ch=sms", "Send an SMS", "Texts to a contact, list or segment", "chat"],
+    ["/mobile?ch=whatsapp", "Send a WhatsApp", "Approved templates and replies", "phone"],
+    ["/mobile/inbox", "Conversations", `${data.messages.filter((x) => x.direction === "in" && !x.read).length} unread replies`, "inbox"],
     ["/journeys", "Build a journey", "Automated multi-step emails and texts", "route"],
-    ["/emails?tab=templates", "Design a template", "Drag-and-drop email builder", "mail"],
-    ["/marketing/forms", "Build a form", "Sign-ups and landing pages", "note"],
+    ["/automations", "Automate a task", "Triggers and follow-up workflows", "bolt"],
+    ["/emails?tab=templates", "Design content", "Drag-and-drop email builder", "layers"],
+    ["/marketing/forms", "Build a form or page", "Sign-ups and landing pages", "note"],
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Marketing" sub="Emails, lists, journeys and results in one place." />
+      <PageHeader title="Marketing Cloud" sub="Email, SMS, WhatsApp, journeys, automation, content and audiences in one place." />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {actions.map(([href, t, s, icon]) => (
-          <Link key={href} href={href} className="group flex items-start gap-3 rounded-3xl border border-line bg-white p-4 transition hover:border-teal hover:shadow-md">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-t text-teal-d"><Icon name={icon} className="size-5" /></span>
+          <Link key={href} href={href} className="group flex items-start gap-3 rounded-[10px] border border-line bg-white p-3.5 shadow-[0_1px_2px_rgba(16,24,40,.04)] transition hover:border-teal">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-teal-t text-teal-d"><Icon name={icon} className="size-[18px]" /></span>
             <span><span className="block font-semibold text-ink group-hover:text-teal-d">{t}</span><span className="block text-[13px] text-muted">{s}</span></span>
           </Link>
         ))}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[["Emails sent", String(m.sent), "Last 30 days"], ["Open rate", pct(m.opened, m.sent), `${m.opened} opened`], ["Click rate", pct(m.clicked, m.sent), `${m.clicked} clicked`], ["Reachable contacts", String(m.reachable), `${m.unsub} unsubscribed`]].map(([l, v, s]) => (
-          <Card key={l} className="!p-5"><div className="text-sm font-medium text-muted">{l}</div><div className="mt-1 font-display text-3xl font-semibold text-ink">{v}</div><div className="mt-0.5 text-[13px] text-muted">{s}</div></Card>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {[["Emails sent", String(m.sent), "Last 30 days"], ["Open rate", pct(m.opened, m.sent), `${m.opened} opened`], ["Click rate", pct(m.clicked, m.sent), `${m.clicked} clicked`], ["Mobile messages", String(data.messages.filter((x) => x.direction === "out").length), `${data.messages.filter((x) => x.direction === "in").length} replies`], ["Reachable contacts", String(m.reachable), `${m.unsub} unsubscribed`]].map(([l, v, s]) => (
+          <Card key={l} className="!px-4 !py-3.5"><div className="text-[12.5px] font-semibold text-muted">{l}</div><div className="mt-1 text-[26px] font-semibold leading-tight text-ink">{v}</div><div className="mt-0.5 text-[13px] text-muted">{s}</div></Card>
         ))}
       </div>
 

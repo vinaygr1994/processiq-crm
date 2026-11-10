@@ -1,4 +1,5 @@
 const P: Record<string, string> = {
+  external: "M14 4h6v6M20 4l-9 9M18 14v5H5V6h5",
   bell: "M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6zM10 19a2 2 0 004 0",
   down: "M6 9l6 6 6-6",
   inbox: "M3 13l3-8h12l3 8v6H3zM3 13h5l1 3h6l1-3h5",

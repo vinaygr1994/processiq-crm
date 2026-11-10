@@ -29,17 +29,9 @@ const SECTIONS: { title: string; items: Item[] }[] = [
     { href: "/bookings/memberships", label: "Memberships", icon: "users" },
     { href: "/bookings/settings", label: "Booking page", icon: "home" },
   ] },
-  { title: "Marketing", items: [
-    { href: "/marketing", label: "Overview", icon: "chart" },
-    { href: "/marketing/send", label: "Send email", icon: "send" },
-    { href: "/emails", label: "Emails and templates", icon: "mail" },
-    { href: "/marketing/lists", label: "Lists", icon: "tag" },
-    { href: "/marketing/forms", label: "Forms and pages", icon: "note" },
-    { href: "/journeys", label: "Journeys", icon: "route" },
-    { href: "/automations", label: "Workflows", icon: "bolt" },
-  ] },
 ];
-const MOBILE: Item[] = [SECTIONS[0].items[0], SECTIONS[1].items[0], SECTIONS[1].items[2], { href: "/marketing", label: "Marketing", icon: "chart" }];
+const MC = { href: "/marketing", label: "Marketing Cloud", icon: "send" };
+const MOBILE: Item[] = [SECTIONS[0].items[0], SECTIONS[1].items[0], SECTIONS[1].items[2], { ...MC, label: "Marketing" }];
 
 type Quick = "lead" | "contact" | "task";
 function useOutside(close: () => void) {
@@ -232,6 +224,11 @@ export function Shell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+        <a href={MC.href} target="_blank" rel="noopener" className="mx-2.5 mb-3 flex shrink-0 items-center gap-2.5 rounded-md border border-white/15 bg-white/[.06] px-2.5 py-2 text-[13.5px] font-semibold text-white transition hover:bg-white/[.12]">
+          <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[#0b8a8a] to-[#5a5bef]"><Icon name="send" className="size-3.5" /></span>
+          <span className="min-w-0 flex-1 leading-tight">Marketing Cloud<span className="block text-[11.5px] font-normal text-[#8391b0]">Email, mobile, journeys</span></span>
+          <Icon name="external" className="size-3.5 text-[#8391b0]" />
+        </a>
         <div className="shrink-0 border-t border-white/10 px-4 py-3 text-[12.5px] text-[#8391b0]"><div className="truncate font-semibold text-[#d5dcec]">{settings?.business_name || "Your business"}</div>{isDemo ? "Demo workspace" : roleLabel(me.role)}</div>
       </aside>
 
@@ -254,7 +251,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Main">
         {MOBILE.map((n) => (
-          <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
+          <Link key={n.href} href={n.href} target={n.href === MC.href ? "_blank" : undefined} aria-current={active(n.href) ? "page" : undefined}
             className={`flex flex-col items-center gap-0.5 py-2 text-[10.5px] font-semibold ${active(n.href) ? "text-teal-d" : "text-muted"}`}>
             <Icon name={n.icon} className="size-[22px]" /> {n.label}
           </Link>

@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { audienceText } from "@/lib/sendEmail";
 import { Icon } from "@/components/Icon";
 import { Badge, Button, Card, ConfirmModal, Empty, Field, Modal, PageHeader } from "@/components/ui";
@@ -41,7 +41,9 @@ function TemplateModal({ t, onClose }: { t?: Template; onClose: () => void }) {
 function EmailPageInner() {
   const { data, remove, update } = useCrm();
   const params = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() => (["campaigns", "templates", "sent"].includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "campaigns"));
+  const router = useRouter();
+  const tab: Tab = ["campaigns", "templates", "sent"].includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "campaigns";
+  const setTab = (id: Tab) => router.replace(`/emails?tab=${id}`);
   const [tpl, setTpl] = useState<Template | "new" | null>(null);
   const [del, setDel] = useState<Template | Campaign | null>(null);
   const status = useStatus();
@@ -54,8 +56,8 @@ function EmailPageInner() {
         action={<div className="flex gap-2"><Button variant="soft" icon="plus" onClick={() => setTpl("new")}>New template</Button><Link href="/marketing/send" className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-[15px] font-semibold text-white hover:bg-[#1d2a47]"><Icon name="send" className="size-4" />Send email</Link></div>} />
       {status?.demo && <p className="mb-4 rounded-2xl bg-sun-t px-4 py-3 text-sm text-[#7a4700]">Demo mode: emails are saved to history but not actually delivered.</p>}
       {status && !status.demo && !status.email && <p className="mb-4 rounded-2xl bg-sun-t px-4 py-3 text-sm text-[#7a4700]">Email sending isn&apos;t connected yet. See Settings → Email.</p>}
-      <div className="mb-5 inline-flex rounded-full bg-white p-1 shadow-sm ring-1 ring-line" role="tablist">
-        {tabs.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === id ? "bg-ink text-white" : "text-body hover:bg-cloud"}`}>{l}</button>)}
+      <div className="mb-4 flex gap-1 border-b border-line" role="tablist">
+        {tabs.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`pill -mb-px border-b-2 px-3 py-2 text-[13.5px] font-semibold ${tab === id ? "border-teal-d text-teal-d" : "border-transparent text-muted hover:text-ink"}`}>{l}</button>)}
       </div>
 
       {tab === "campaigns" && (data.campaigns.length === 0 ? (

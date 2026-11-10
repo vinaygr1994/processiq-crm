@@ -14,6 +14,7 @@ export interface Contact {
   owner?: string;
   custom?: Record<string, string>;
   created_at: string;
+  sms_opt_out?: boolean;
 }
 export interface Deal {
   id: string;
@@ -191,7 +192,11 @@ export type FieldType = "text" | "textarea" | "number" | "currency" | "date" | "
 export interface ObjField { key: string; label: string; type: FieldType; options?: string[]; required?: boolean }
 export interface CrmObject { id: string; name: string; plural: string; icon: string; color: string; fields: ObjField[]; statuses: string[]; link_contact: boolean; link_deal: boolean; created_at: string }
 export interface CrmRecord { id: string; object_id: string; contact_id: string | null; deal_id: string | null; title: string; status: string; assigned_to: string; data: Record<string, string>; created_at: string }
+export type Channel = "sms" | "whatsapp";
+export interface Message { id: string; contact_id: string | null; channel: Channel; direction: "in" | "out"; phone: string; body: string; template: string; status: string; error: string; provider_id: string; read: boolean; created_at: string }
+
 export interface Tables {
+  messages: Message;
   workflows: Workflow;
   workflow_runs: WorkflowRun;
   contacts: Contact;

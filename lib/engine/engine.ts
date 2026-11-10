@@ -225,9 +225,10 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
         } else if (step.type === "sms") {
           const body = render(step.body, vars);
           if (!contact?.phone) await log(deal ?? null, "Auto", "Text skipped: no phone number on file", "warn");
+          else if (contact.sms_opt_out) await log(deal ?? null, "Auto", `Text skipped: ${contact.name} replied STOP`, "warn");
           else {
             const r = await port.sms({ to: contact.phone, body, contactId: contact.id });
-            await log(deal ?? null, "Auto", r.status === "skipped" ? "Text skipped: SMS isn't connected yet (Settings → Connections)" : r.status === "failed" ? `Text failed: ${r.error ?? "unknown error"}` : `Text sent to ${contact.name}`, r.status === "sent" || r.status === "demo" ? "info" : "warn");
+            await log(deal ?? null, "Auto", r.status === "skipped" ? "Text skipped: SMS isn't connected yet (Mobile Studio → Setup)" : r.status === "failed" ? `Text failed: ${r.error ?? "unknown error"}` : `Text sent to ${contact.name}`, r.status === "sent" || r.status === "demo" ? "info" : "warn");
           }
         } else if (step.type === "task") {
           const title = render(step.title, vars);

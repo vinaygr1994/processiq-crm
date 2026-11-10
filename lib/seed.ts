@@ -102,6 +102,17 @@ export function seedRows(): Rows {
         statuses: ["Booked", "Attended", "No-show", "Cancelled"],
         fields: [{ key: "class", label: "Class", type: "select", options: ["Strength", "Mobility", "HIIT", "Yoga"], required: true }, { key: "date", label: "Class date", type: "date", required: true }, { key: "trial", label: "Free trial", type: "checkbox" }] },
     ],
+    messages: [
+      { id: "mg1", contact_id: "c3", channel: "whatsapp", direction: "out", phone: "+14165550113", body: "Hi Priya, thanks for your interest in Northstar Studio. Would Thursday at 2pm work for your free consultation?", template: "consultation_invite", status: "delivered", error: "", provider_id: "", read: true, created_at: ago(2 * D) },
+      { id: "mg2", contact_id: "c3", channel: "whatsapp", direction: "in", phone: "+14165550113", body: "Thursday works. Can we do 2:30 instead?", template: "", status: "received", error: "", provider_id: "", read: true, created_at: ago(2 * D - 20 * 60000) },
+      { id: "mg3", contact_id: "c3", channel: "whatsapp", direction: "out", phone: "+14165550113", body: "2:30 is perfect. You're booked. See you then!", template: "", status: "delivered", error: "", provider_id: "", read: true, created_at: ago(2 * D - 30 * 60000) },
+      { id: "mg4", contact_id: "c3", channel: "whatsapp", direction: "in", phone: "+14165550113", body: "Great, thank you. Do I need to bring anything?", template: "", status: "received", error: "", provider_id: "", read: false, created_at: ago(3 * H) },
+      { id: "mg5", contact_id: "c4", channel: "sms", direction: "out", phone: "+14165550114", body: "Hi Tom, your Strength class is tomorrow at 6pm. Reply C to confirm or R to reschedule.", template: "", status: "delivered", error: "", provider_id: "", read: true, created_at: ago(1 * D) },
+      { id: "mg6", contact_id: "c4", channel: "sms", direction: "in", phone: "+14165550114", body: "C", template: "", status: "received", error: "", provider_id: "", read: true, created_at: ago(1 * D - 5 * 60000) },
+      { id: "mg7", contact_id: "c1", channel: "sms", direction: "out", phone: "+14165550111", body: "Hi Sarah, it's Maria from Northstar Studio. I got your request and will call you this afternoon.", template: "", status: "delivered", error: "", provider_id: "", read: true, created_at: ago(9 * 60000) },
+      { id: "mg8", contact_id: "c2", channel: "sms", direction: "out", phone: "+14165550112", body: "Hi James, a reminder about your session on Wednesday at 10am.", template: "", status: "delivered", error: "", provider_id: "", read: true, created_at: ago(5 * H) },
+      { id: "mg9", contact_id: "c5", channel: "sms", direction: "in", phone: "+14165550115", body: "Hi, can someone send me the renewal quote again?", template: "", status: "received", error: "", provider_id: "", read: false, created_at: ago(40 * 60000) },
+    ],
     records: [
       { id: "r1", object_id: "ob1", contact_id: "c3", deal_id: "d3", title: "Initial consultation", status: "Scheduled", assigned_to: "Maria", data: { date: at(2, 11).slice(0, 16), type: "Video call", concern: "Wants automated reminders and online booking.", fee: "0" }, created_at: ago(3 * D) },
       { id: "r2", object_id: "ob1", contact_id: "c1", deal_id: "d1", title: "Discovery consultation", status: "Requested", assigned_to: "", data: { type: "Phone" }, created_at: ago(1 * H) },

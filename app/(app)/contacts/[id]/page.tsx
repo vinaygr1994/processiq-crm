@@ -28,7 +28,7 @@ export default function ContactPage() {
   const router = useRouter();
   const { data, update, remove, removeMany, toast, can, team } = useCrm();
   const { name: stageName, pipelines } = useStages();
-  const [tab, setTab] = useState<"all" | "notes" | "emails" | "calls" | "tasks">("all");
+  const [tab, setTab] = useState<"all" | "notes" | "emails" | "messages" | "calls" | "tasks">("all");
   const flow = useFlow();
   const contact = data.contacts.find((c) => c.id === id);
   const [modal, setModal] = useState<"email" | "task" | "delete" | null>(null);
@@ -42,8 +42,9 @@ export default function ContactPage() {
   const timeline = useMemo(() => {
     const a = data.activities.filter((x) => x.contact_id === id).map((x) => ({ key: x.id, at: x.created_at, kind: x.kind as string, title: "", body: x.body }));
     const e = data.emails.filter((x) => x.contact_id === id).map((x) => ({ key: x.id, at: x.created_at, kind: x.status === "failed" ? "email-failed" : "email", title: x.subject, body: x.body }));
-    return [...a, ...e].sort((x, y) => y.at.localeCompare(x.at));
-  }, [data.activities, data.emails, id]);
+    const m = data.messages.filter((x) => x.contact_id === id).map((x) => ({ key: x.id, at: x.created_at, kind: x.channel as string, title: x.direction === "in" ? "Received" : x.status === "failed" ? "Failed to send" : "Sent", body: x.body }));
+    return [...a, ...e, ...m].sort((x, y) => y.at.localeCompare(x.at));
+  }, [data.activities, data.emails, data.messages, id]);
   const tasks = data.tasks.filter((t) => t.contact_id === id);
   const deals = data.deals.filter((d) => d.contact_id === id);
 
@@ -87,16 +88,16 @@ export default function ContactPage() {
 
   const today = todayStr();
   const openTasks = tasks.filter((x) => !x.done).length;
-  const shown = timeline.filter((x) => tab === "all" || (tab === "notes" ? x.kind === "note" : tab === "emails" ? x.kind.startsWith("email") : tab === "calls" ? x.kind === "call" || x.kind === "meeting" : false));
+  const shown = timeline.filter((x) => tab === "all" || (tab === "notes" ? x.kind === "note" : tab === "emails" ? x.kind.startsWith("email") : tab === "calls" ? x.kind === "call" || x.kind === "meeting" : tab === "messages" ? x.kind === "sms" || x.kind === "whatsapp" : false));
   const compose = (k: ActivityKind) => { setKind(k); setTab("all"); setTimeout(() => document.getElementById("activity-box")?.focus(), 0); };
   const ACTIONS: { label: string; icon: string; run: () => void }[] = [
     { label: "Note", icon: "note", run: () => compose("note") },
     { label: "Email", icon: "mail", run: () => (contact.email ? setModal("email") : toast("Add an email address first", "error")) },
-    { label: "Call", icon: "phone", run: () => compose("call") },
+    { label: "Text", icon: "chat", run: () => window.open(`/mobile/inbox?c=${contact.id}`, "_blank", "noopener") },
     { label: "Task", icon: "check", run: () => setModal("task") },
     { label: "Meeting", icon: "calendar", run: () => compose("meeting") },
   ];
-  const TABS = [["all", "Activity"], ["notes", "Notes"], ["emails", "Emails"], ["calls", "Calls and meetings"], ["tasks", `Tasks${openTasks ? ` (${openTasks})` : ""}`]] as const;
+  const TABS = [["all", "Activity"], ["notes", "Notes"], ["emails", "Emails"], ["messages", "SMS and WhatsApp"], ["calls", "Calls and meetings"], ["tasks", `Tasks${openTasks ? ` (${openTasks})` : ""}`]] as const;
   const side = "rounded-[10px] border border-line bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]";
   const lbl = "mb-1 block text-[12px] font-semibold text-muted";
   return (
@@ -186,7 +187,7 @@ export default function ContactPage() {
                 </>
               ) : (
                 <>
-                  {tab !== "emails" && (
+                  {tab !== "emails" && tab !== "messages" && (
                     <form onSubmit={logActivity} className="mb-5 rounded-lg border border-line bg-[#f8f9fc] p-3">
                       <div className="mb-2 flex gap-1" role="group" aria-label="Type">
                         {KINDS.map((k) => (
@@ -198,18 +199,19 @@ export default function ContactPage() {
                       <div className="mt-2 flex justify-end"><Button type="submit" size="sm" disabled={!text.trim()}>Save {kind}</Button></div>
                     </form>
                   )}
+                  {tab === "messages" && <div className="mb-4 flex justify-end"><a href={`/mobile/inbox?c=${contact.id}`} target="_blank" rel="noopener"><Button size="sm" icon="chat">Open conversation</Button></a></div>}
                   {tab === "emails" && <div className="mb-4 flex justify-end"><Button size="sm" icon="send" onClick={() => (contact.email ? setModal("email") : toast("Add an email address first", "error"))}>Write email</Button></div>}
                   {shown.length === 0 ? <p className="py-6 text-center text-muted">Nothing here yet.</p> : (
                     <ol className="relative space-y-4 before:absolute before:bottom-2 before:left-[15px] before:top-2 before:w-px before:bg-line">
                       {shown.map((x) => {
                         const mail = x.kind.startsWith("email");
-                        const icon = mail ? "mail" : x.kind === "call" ? "phone" : x.kind === "meeting" ? "calendar" : "note";
+                        const icon = mail ? "mail" : x.kind === "sms" || x.kind === "whatsapp" ? "chat" : x.kind === "call" ? "phone" : x.kind === "meeting" ? "calendar" : "note";
                         return (
                           <li key={x.key} className="relative flex gap-3">
                             <span className={`pill z-10 grid size-8 shrink-0 place-items-center rounded-full ring-4 ring-white ${x.kind === "email-failed" ? "bg-rose-t text-[#c42b52]" : mail ? "bg-iris-t text-iris" : "bg-teal-t text-teal-d"}`}><Icon name={icon} className="size-4" /></span>
                             <div className="min-w-0 flex-1 rounded-lg border border-line px-3.5 py-2.5">
                               <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-muted">
-                                <span className="font-semibold capitalize text-ink">{x.kind === "email" ? "Email sent" : x.kind === "email-failed" ? "Email failed" : x.kind}</span>
+                                <span className="font-semibold capitalize text-ink">{x.kind === "email" ? "Email sent" : x.kind === "email-failed" ? "Email failed" : x.kind === "sms" ? "SMS" : x.kind === "whatsapp" ? "WhatsApp" : x.kind}</span>
                                 <span>{timeAgo(x.at)}</span>
                               </div>
                               {x.title && <div className="mt-0.5 text-[13.5px] font-semibold text-ink">{x.title}</div>}
