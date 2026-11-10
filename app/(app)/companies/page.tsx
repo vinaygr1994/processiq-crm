@@ -15,7 +15,7 @@ interface Co { name: string; contacts: Contact[]; deals: Deal[]; open: number; w
 export default function CompaniesPage() {
   const { data } = useCrm();
   const { pipelines } = useStages();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("q") ?? ""));
   const [sel, setSel] = useState<Co | null>(null);
   const [sort, setSort] = useState<"name" | "open" | "won" | "contacts">("open");
 

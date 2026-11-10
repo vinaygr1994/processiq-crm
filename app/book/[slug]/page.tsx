@@ -105,7 +105,7 @@ export default function BookPage() {
 
         {step === 0 && groups.map(([g, list]) => list.length > 0 && (
           <section key={g} className="mb-6">
-            <h2 className="mb-3 text-lg font-semibold text-[#111a2e]">{g}</h2>
+            <h2 className="mb-3 text-[15px] font-semibold text-[#111a2e]">{g}</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {list.map((s) => (
                 <button key={s.id} type="button" onClick={() => { setSvc(s); if (s.kind === "appointment") { setDate(days[0] ?? ""); setSlots(null); } }} className="flex gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-[#e4e8f0] transition hover:shadow-md hover:ring-[#0b8a8a]">
@@ -120,7 +120,7 @@ export default function BookPage() {
 
         {step === 1 && svc && (
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-[#e4e8f0] sm:p-6">
-            <h2 className="text-xl font-semibold text-[#111a2e]">{svc.name}</h2>
+            <h2 className="text-base font-semibold text-[#111a2e]">{svc.name}</h2>
             <p className="text-sm text-[#5d6782]">{svc.duration} min · {money(svc.price)}</p>
             {svc.kind === "class" ? (
               sessions.length === 0 ? <p className="mt-4 text-[#5d6782]">No upcoming classes. Please check back soon.</p> : (
@@ -171,7 +171,7 @@ export default function BookPage() {
         {step === 3 && svc && (
           <section className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-[#e4e8f0]" role="status">
             <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[#0b8a8a] text-2xl text-white">✓</div>
-            <h2 className="text-xl font-semibold text-[#111a2e]">You&apos;re booked!</h2>
+            <h2 className="text-base font-semibold text-[#111a2e]">You&apos;re booked!</h2>
             <p className="mt-2 text-[#5d6782]">{svc.name} on {done}. A confirmation is on its way to {f.email}.</p>
             <button type="button" onClick={() => { setState("idle"); setPick(null); setSvc(null); setSlots(null); }} className="mt-5 text-sm font-semibold text-[#0b6f6f] hover:underline">Book something else</button>
           </section>

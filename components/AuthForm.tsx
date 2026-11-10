@@ -51,7 +51,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <div className="w-full max-w-md">
         <div className="mb-8 flex justify-center"><Logo /></div>
         <div className="rounded-3xl border border-line bg-white p-7 shadow-sm sm:p-9">
-          <h1 className="text-2xl font-semibold">{signup ? "Create your account" : "Welcome back"}</h1>
+          <h1 className="text-[22px] font-semibold">{signup ? "Create your account" : "Welcome back"}</h1>
           <p className="mt-1 text-muted">{signup ? "Free to start. No credit card." : "Log in to see what needs your attention today."}</p>
           <form onSubmit={submit} className="mt-6 space-y-4">
             <Field label="Email"><input className="field" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>

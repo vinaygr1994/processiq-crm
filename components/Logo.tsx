@@ -18,12 +18,12 @@ export function Mark({ className = "size-9" }: { className?: string }) {
     </svg>
   );
 }
-export function Logo({ className = "" }: { className?: string }) {
+export function Logo({ className = "", dark = false }: { className?: string; dark?: boolean }) {
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <Mark />
-      <span className="font-display text-[1.15rem] font-semibold text-ink">
-        Process IQ <span className="font-medium text-muted">CRM</span>
+      <Mark className={dark ? "size-8" : "size-9"} />
+      <span className={`font-brand text-[1.1rem] font-semibold ${dark ? "text-white" : "text-ink"}`}>
+        Process IQ <span className={`font-medium ${dark ? "text-white/55" : "text-muted"}`}>CRM</span>
       </span>
     </span>
   );

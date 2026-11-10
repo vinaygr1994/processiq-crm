@@ -22,7 +22,7 @@ export function seedRows(): Rows {
       c("c3", "Priya Nair", "priya@nair.example", "555-0113", "Referral", 8 * D),
       c("c4", "Tom Becker", "tom@becker.example", "555-0114", "Facebook / Instagram", 14 * D),
       c("c5", "Linda Park", "linda@park.example", "555-0115", "Google Ads", 30 * D),
-      c("c6", "Marcus Webb", "marcus@webb.example", "555-0116", "Yelp / Houzz", 40 * D),
+      c("c6", "Marcus Webb", "marcus@webb.example", "555-0116", "LinkedIn", 40 * D),
       c("c7", "Ava Johnson", "ava@johnson.example", "555-0117", "Referral", 50 * D),
     ],
     deals: [
@@ -34,6 +34,13 @@ export function seedRows(): Rows {
       deal({ id: "d5", title: "Website and booking page · Park & Co.", stage: "won", contact_id: "c5", value: 28500, project: "New customer", budget: "", source: "Google Ads", address: "New York, NY", rep: "Dan", close_date: day(-9), created_at: ago(30 * D), stage_at: ago(9 * D) }),
       deal({ id: "d6", title: "Sales pipeline rebuild · Webb Consulting", stage: "lost", contact_id: "c6", value: 64000, project: "Consulting", budget: "", source: "Event", address: "London, UK", rep: "Dan", lost_reason: "Price too high", created_at: ago(40 * D), stage_at: ago(20 * D) }),
       deal({ id: "d7", title: "Client retention program · Johnson Spa", stage: "won", contact_id: "c7", value: 15200, project: "Upgrade", budget: "", source: "Referral", address: "Dublin, IE", rep: "Maria", close_date: day(-2), created_at: ago(50 * D), stage_at: ago(2 * D) }),
+      deal({ id: "d9", title: "Onboarding package · Collins Dental", stage: "won", contact_id: "c1", value: 9800, project: "New customer", budget: "", source: "Referral", address: "", rep: "Maria", created_at: ago(150 * D), stage_at: ago(138 * D) }),
+      deal({ id: "d10", title: "Email marketing setup · Okafor Physio", stage: "won", contact_id: "c2", value: 6400, project: "New customer", budget: "", source: "Website form", address: "", rep: "Dan", created_at: ago(128 * D), stage_at: ago(110 * D) }),
+      deal({ id: "d11", title: "Front desk automation · Nair Aesthetics", stage: "won", contact_id: "c3", value: 21500, project: "Upgrade", budget: "", source: "Google Ads", address: "", rep: "Maria", created_at: ago(112 * D), stage_at: ago(84 * D) }),
+      deal({ id: "d12", title: "Loyalty program · Becker Fitness", stage: "won", contact_id: "c4", value: 13200, project: "Upgrade", budget: "", source: "Facebook / Instagram", address: "", rep: "Dan", created_at: ago(95 * D), stage_at: ago(71 * D) }),
+      deal({ id: "d13", title: "Reporting dashboards · Webb Consulting", stage: "lost", contact_id: "c6", value: 17500, project: "Consulting", budget: "", source: "Event", address: "", rep: "Maria", lost_reason: "Went with a competitor", created_at: ago(90 * D), stage_at: ago(66 * D) }),
+      deal({ id: "d14", title: "Listing follow-up system · Park & Co.", stage: "won", contact_id: "c5", value: 24800, project: "New customer", budget: "", source: "Google Ads", address: "", rep: "Dan", created_at: ago(70 * D), stage_at: ago(48 * D) }),
+      deal({ id: "d15", title: "Review and referral engine · Johnson Spa", stage: "won", contact_id: "c7", value: 11900, project: "Upgrade", budget: "", source: "Referral", address: "", rep: "Maria", created_at: ago(64 * D), stage_at: ago(37 * D) }),
     ],
     visits: [
       { id: "v2", deal_id: "d2", contact_id: "c2", rep: "Dan", starts_at: ahead(30 * H), status: "scheduled", priority: "", result: "", created_at: ago(2 * D) },
@@ -54,10 +61,10 @@ export function seedRows(): Rows {
     ],
     tasks: [
       { id: "t1", title: "Call Sarah Collins back (new Google Ads lead)", due_date: null, done: false, contact_id: "c1", deal_id: "d1", created_at: ago(9 * M) },
-      { id: "t2", title: "Send Priya the quote for the basement", due_date: null, done: false, contact_id: "c3", deal_id: "d3", created_at: ago(1 * D) },
+      { id: "t2", title: "Send Priya the proposal for marketing automation", due_date: null, done: false, contact_id: "c3", deal_id: "d3", created_at: ago(1 * D) },
     ],
     activities: [
-      { id: "a1", contact_id: "c4", kind: "call", body: "Tom wants to compare with one other contractor. Asked about financing options.", created_at: ago(4 * D) },
+      { id: "a1", contact_id: "c4", kind: "call", body: "Tom wants to compare with one other provider. Asked about financing options.", created_at: ago(4 * D) },
       { id: "a2", contact_id: "c3", kind: "note", body: "Priya prefers text over calls. Best time is after 5pm.", created_at: ago(6 * D) },
     ],
     templates: [

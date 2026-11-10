@@ -58,7 +58,7 @@ export default function WorkflowPage() {
       </Card>
 
       <Card className="!border-teal/40 !bg-teal-t/30">
-        <div className="mb-3 flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-white text-teal-d"><Icon name="bolt" className="size-4" /></span><h2 className="text-lg font-semibold">Starts when</h2><Badge tone="teal">{triggerText(trigger, stageName)}</Badge></div>
+        <div className="mb-3 flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-white text-teal-d"><Icon name="bolt" className="size-4" /></span><h2 className="text-[15px] font-semibold">Starts when</h2><Badge tone="teal">{triggerText(trigger, stageName)}</Badge></div>
         <div className="flex flex-wrap items-center gap-2">
           <select className="field !w-auto" value={trigger.type} aria-label="Trigger" onChange={(e) => touch(setTrigger)({ type: e.target.value as TriggerType, ...(e.target.value === "stage_changed" ? { stage: "contacted" } : {}) })}>{TRIGGERS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select>
           {trigger.type === "stage_changed" && <select className="field !w-auto" value={trigger.stage ?? ""} aria-label="Stage" onChange={(e) => touch(setTrigger)({ ...trigger, stage: e.target.value })}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>}

@@ -111,15 +111,15 @@ export function RelatedRecords({ contactId, dealId }: { contactId?: string; deal
         const recs = data.records.filter((r) => r.object_id === o.id && (dealId ? r.deal_id === dealId : r.contact_id === contactId)).sort((a, b) => b.created_at.localeCompare(a.created_at));
         const first = o.fields.find((f) => f.type === "datetime" || f.type === "date");
         return (
-          <section key={o.id} className="rounded-3xl border border-line bg-white p-5" aria-label={o.plural}>
+          <section key={o.id} className="rounded-[10px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,.04)]" aria-label={o.plural}>
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-lg font-semibold"><span className="grid size-7 place-items-center rounded-lg" style={{ background: o.color + "1f", color: o.color }}><Icon name={o.icon} className="size-4" /></span>{o.plural} <span className="text-sm font-normal text-muted">{recs.length}</span></h2>
-              {can("write") && <button onClick={() => setOpen({ obj: o })} className="text-sm font-semibold text-teal-d hover:underline">+ Add</button>}
+              <h2 className="flex items-center gap-2 text-[14.5px] font-semibold"><span className="grid size-6 place-items-center rounded-md" style={{ background: o.color + "1f", color: o.color }}><Icon name={o.icon} className="size-3.5" /></span>{o.plural} <span className="font-normal text-muted">{recs.length}</span></h2>
+              {can("write") && <button onClick={() => setOpen({ obj: o })} className="text-[13px] font-semibold text-teal-d hover:underline">+ Add</button>}
             </div>
-            {recs.length === 0 ? <p className="text-sm text-muted">None yet.</p> : (
+            {recs.length === 0 ? <p className="text-[13px] text-muted">None yet.</p> : (
               <ul className="space-y-2">{recs.map((r) => (
-                <li key={r.id}><button onClick={() => setOpen({ obj: o, rec: r })} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-line px-4 py-2.5 text-left hover:bg-cloud">
-                  <span className="min-w-0"><span className="block truncate font-semibold text-ink">{r.title}</span><span className="text-[13px] text-muted">{[first && showValue(first, r.data[first.key]), r.assigned_to].filter(Boolean).join(" · ") || "No details"}</span></span>
+                <li key={r.id}><button onClick={() => setOpen({ obj: o, rec: r })} className="flex w-full items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 text-left hover:bg-cloud">
+                  <span className="min-w-0"><span className="block truncate text-[13.5px] font-semibold text-ink">{r.title}</span><span className="text-[12.5px] text-muted">{[first && showValue(first, r.data[first.key]), r.assigned_to].filter(Boolean).join(" · ") || "No details"}</span></span>
                   <Badge tone={statusTone(o, r.status)}>{r.status}</Badge></button></li>
               ))}</ul>
             )}

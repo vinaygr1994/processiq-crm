@@ -3,22 +3,50 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { NewLeadModal } from "@/components/flowModals";
-import { AddContactModal, ImportModal } from "@/components/forms";
-import { AiButton, Badge, Button, Card, Empty } from "@/components/ui";
+import { ImportModal } from "@/components/forms";
+import { AiButton, Avatar, Badge, Button, Card, Empty } from "@/components/ui";
 import { useCrm } from "@/lib/store";
 import { aiToday } from "@/lib/ai";
 import { nowMs } from "@/lib/clock";
 import { dueLabel, money, timeAgo, todayStr } from "@/lib/format";
-import { isOpen } from "@/lib/stages";
+import { columnOf, weighted } from "@/lib/pipelines";
 import { useStages } from "@/lib/useStages";
 
 const DAY = 86400000;
-const toneDot = { info: "bg-teal", warn: "bg-sun", won: "bg-emerald-500", skip: "bg-[#c4cbdb]" } as const;
+const PERIODS = [{ id: 30, label: "Last 30 days" }, { id: 90, label: "Last 90 days" }, { id: 365, label: "Last 12 months" }];
+const compact = (n: number) => (n >= 1000 ? `$${(n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "")}k` : `$${Math.round(n)}`);
 
-export default function TodayPage() {
-  const { data, update, add, toast } = useCrm();
-  const { stages } = useStages();
-  const [modal, setModal] = useState<"lead" | "contact" | "import" | null>(null);
+function Panel({ title, action, children, className = "" }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={`flex flex-col rounded-[10px] border border-line bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] ${className}`}>
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3"><h2 className="text-[14.5px] font-semibold">{title}</h2>{action}</div>
+      <div className="flex-1 p-4">{children}</div>
+    </section>
+  );
+}
+const more = "text-[13px] font-semibold text-teal-d hover:underline";
+
+function Delta({ d }: { d: number | null }) {
+  return d === null ? <span className="text-muted">No earlier data</span> : (
+    <span><span className={`font-semibold ${d >= 0 ? "text-emerald-700" : "text-[#c42b52]"}`}>{d >= 0 ? "▲" : "▼"} {Math.abs(d)}%</span> <span className="text-muted">vs previous period</span></span>
+  );
+}
+function Kpi({ label, value, sub, href }: { label: string; value: string; sub: React.ReactNode; href?: string }) {
+  const body = (
+    <div className={`h-full rounded-[10px] border border-line bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(16,24,40,.04)] ${href ? "transition hover:border-[#b9c2d6]" : ""}`}>
+      <div className="text-[12.5px] font-semibold text-muted">{label}</div>
+      <div className="mt-1 text-[26px] font-semibold leading-tight tracking-tight text-ink">{value}</div>
+      <div className="mt-0.5 text-[12.5px]">{sub}</div>
+    </div>
+  );
+  return href ? <Link href={href}>{body}</Link> : body;
+}
+
+export default function HomePage() {
+  const { data, update, add, toast, me, team } = useCrm();
+  const { pipelines } = useStages();
+  const [modal, setModal] = useState<"lead" | "import" | null>(null);
+  const [days, setDays] = useState(30);
   const [quickTask, setQuickTask] = useState("");
   const [ai, setAi] = useState<{ items: string[]; live: boolean } | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
@@ -27,43 +55,69 @@ export default function TodayPage() {
 
   const v = useMemo(() => {
     const now = nowMs();
-    const wk = now - 7 * DAY;
-    const deals = data.deals;
-    const leads7 = deals.filter((d) => new Date(d.created_at).getTime() >= wk);
-    // average first reply = speed-to-lead log time minus lead creation time
-    const replies = deals.flatMap((d) => {
-      const l = data.autolog.find((x) => x.deal_id === d.id && x.key === `speed:${d.id}`);
-      return l ? [Math.max(0, new Date(l.created_at).getTime() - new Date(d.created_at).getTime())] : [];
-    });
-    const avgReply = replies.length ? replies.reduce((a, b) => a + b, 0) / replies.length : null;
-    const upcoming = data.visits.filter((x) => x.status === "scheduled" && new Date(x.starts_at).getTime() >= now);
-    const quoted = deals.filter((d) => d.stage === "quoted");
-    const won = deals.filter((d) => d.stage === "won" || d.stage === "completed");
-    const sent = data.autolog.filter((l) => l.tone !== "skip" && /\bsent\b/i.test(l.message)).length;
-    const funnel = stages.map((s) => ({ ...s, n: deals.filter((d) => d.stage === s.id).length }));
-    const sources = [...new Set(deals.map((d) => d.source || "Other"))].map((src) => {
-      const ds = deals.filter((d) => (d.source || "Other") === src);
-      const ids = new Set(ds.map((d) => d.id));
-      const visits = new Set(data.visits.filter((x) => ids.has(x.deal_id) && x.status !== "cancelled").map((x) => x.deal_id)).size;
-      const q = ds.filter((d) => d.quote_sent_at || ["quoted", "won", "completed"].includes(d.stage)).length;
-      const w = ds.filter((d) => d.stage === "won" || d.stage === "completed");
-      return { src, leads: ds.length, visits, quotes: q, won: w.length, revenue: w.reduce((a, d) => a + d.value, 0), rate: ds.length ? Math.round((w.length / ds.length) * 100) : 0 };
-    }).sort((a, b) => b.revenue - a.revenue || b.leads - a.leads);
-    const open = data.tasks.filter((t) => !t.done);
-    const overdue = open.filter((t) => t.due_date && t.due_date < today);
-    const dueToday = open.filter((t) => t.due_date === today);
-    const later = open.filter((t) => !t.due_date || t.due_date > today).sort((a, b) => (a.due_date ?? "9").localeCompare(b.due_date ?? "9")).slice(0, 3);
-    const stale = deals.filter((d) => isOpen(d.stage) && d.stage !== "new" && now - new Date(d.stage_at).getTime() > 5 * DAY)
-      .map((d) => ({ deal: d, days: Math.floor((now - new Date(d.stage_at).getTime()) / DAY) })).sort((a, b) => b.days - a.days).slice(0, 4);
-    return { leads7, avgReply, upcoming, quoted, quotedSum: quoted.reduce((a, d) => a + d.value, 0), won, wonSum: won.reduce((a, d) => a + d.value, 0), sent, funnel, sources, overdue, dueToday, later, stale };
-  }, [data, today]);
+    const from = now - days * DAY, prev = from - days * DAY;
+    const t = (iso: string) => new Date(iso).getTime();
+    const kind = (d: (typeof data.deals)[number]) => columnOf(d, pipelines).kind;
+    const open = data.deals.filter((d) => kind(d) === "open");
+    const won = data.deals.filter((d) => kind(d) === "won");
+    const lost = data.deals.filter((d) => kind(d) === "lost");
+    const inP = <T,>(xs: T[], at: (x: T) => number) => xs.filter((x) => at(x) >= from);
+    const inPrev = <T,>(xs: T[], at: (x: T) => number) => xs.filter((x) => at(x) >= prev && at(x) < from);
+    const sum = (xs: { value: number }[]) => xs.reduce((a, d) => a + (d.value || 0), 0);
+    const wonNow = inP(won, (d) => t(d.stage_at)), wonPrev = inPrev(won, (d) => t(d.stage_at));
+    const lostNow = inP(lost, (d) => t(d.stage_at));
+    const newNow = inP(data.deals, (d) => t(d.created_at)), newPrev = inPrev(data.deals, (d) => t(d.created_at));
+    const delta = (a: number, b: number) => (b === 0 ? (a === 0 ? null : 100) : Math.round(((a - b) / b) * 100));
+    const closed = wonNow.length + lostNow.length;
 
-  const log = useMemo(() => data.autolog.filter((l) => l.tone !== "skip").slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8), [data.autolog]);
-  const dueNow = [...v.overdue, ...v.dueToday];
+    // revenue won per month, last 6 months
+    const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(now); d.setDate(1); d.setMonth(d.getMonth() - (5 - i)); return { key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString(undefined, { month: "short" }), total: 0, n: 0 }; });
+    for (const d of won) { const x = new Date(d.stage_at); const m = months.find((y) => y.key === `${x.getFullYear()}-${x.getMonth()}`); if (m) { m.total += d.value || 0; m.n++; } }
+
+    const main = pipelines[0];
+    const funnel = main.stages.filter((s) => s.kind === "open").map((s) => { const ds = open.filter((d) => columnOf(d, pipelines).id === s.id); return { ...s, n: ds.length, total: sum(ds) }; });
+
+    const sources = [...new Set(data.deals.map((d) => d.source || "Other"))].map((src) => {
+      const ds = data.deals.filter((d) => (d.source || "Other") === src);
+      const w = ds.filter((d) => kind(d) === "won");
+      const cl = w.length + ds.filter((d) => kind(d) === "lost").length;
+      return { src, leads: ds.length, won: w.length, revenue: sum(w), rate: cl ? Math.round((w.length / cl) * 100) : null };
+    }).sort((a, b) => b.revenue - a.revenue || b.leads - a.leads).slice(0, 6);
+
+    const owners = [...new Set([...team, ...data.deals.map((d) => d.rep)].filter(Boolean))].map((name) => ({
+      name, open: sum(open.filter((d) => d.rep === name)), openN: open.filter((d) => d.rep === name).length, won: sum(wonNow.filter((d) => d.rep === name)),
+    })).sort((a, b) => b.won - a.won || b.open - a.open).slice(0, 5);
+
+    const tasks = data.tasks.filter((x) => !x.done).sort((a, b) => (a.due_date ?? "9").localeCompare(b.due_date ?? "9"));
+    const overdue = tasks.filter((x) => x.due_date && x.due_date < today);
+    const attention = open.map((d) => {
+      const quiet = Math.floor((now - t(d.stage_at)) / DAY);
+      const late = !!d.close_date && d.close_date < today;
+      return { deal: d, quiet, late };
+    }).filter((x) => x.late || x.quiet >= 7).sort((a, b) => Number(b.late) - Number(a.late) || b.quiet - a.quiet).slice(0, 5);
+
+    const upcoming = [
+      ...data.visits.filter((x) => x.status === "scheduled" && t(x.starts_at) >= now).map((x) => ({ id: x.id, at: x.starts_at, title: "Meeting", who: contactById.get(x.contact_id ?? "")?.name ?? "", href: `/pipeline?deal=${x.deal_id}` })),
+      ...data.bookings.filter((b) => b.status === "booked" && t(b.starts_at) >= now).map((b) => ({ id: b.id, at: b.starts_at, title: data.services.find((s) => s.id === b.service_id)?.name ?? "Booking", who: contactById.get(b.contact_id ?? "")?.name ?? "", href: "/bookings" })),
+    ].sort((a, b) => a.at.localeCompare(b.at)).slice(0, 5);
+
+    const feed = [
+      ...data.autolog.filter((l) => l.tone !== "skip").map((l) => { const d = data.deals.find((x) => x.id === l.deal_id); return { id: l.id, at: l.created_at, text: l.message, who: contactById.get(d?.contact_id ?? "")?.name ?? "", icon: "bolt" }; }),
+      ...data.activities.map((a) => ({ id: a.id, at: a.created_at, text: `${a.kind[0].toUpperCase()}${a.kind.slice(1)}: ${a.body}`, who: contactById.get(a.contact_id)?.name ?? "", icon: a.kind === "call" ? "phone" : a.kind === "meeting" ? "calendar" : "note" })),
+    ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 7);
+
+    return {
+      open, openSum: sum(open), forecast: open.reduce((a, d) => a + weighted(d, pipelines), 0),
+      wonSum: sum(wonNow), wonN: wonNow.length, wonDelta: delta(sum(wonNow), sum(wonPrev)),
+      newN: newNow.length, newDelta: delta(newNow.length, newPrev.length),
+      winRate: closed ? Math.round((wonNow.length / closed) * 100) : null, closed,
+      months, funnel, sources, owners, tasks, overdue, attention, upcoming, feed, mainName: main.name,
+    };
+  }, [data, pipelines, days, today, team, contactById]);
+
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const replyText = v.avgReply === null ? "—" : v.avgReply < 60000 ? "< 1 min" : v.avgReply < 3600000 ? `${Math.round(v.avgReply / 60000)} min` : `${(v.avgReply / 3600000).toFixed(1)} h`;
-  const maxN = Math.max(1, ...v.funnel.map((f) => f.n));
+  const period = PERIODS.find((p) => p.id === days)!.label.toLowerCase();
 
   async function addQuick(e: React.FormEvent) {
     e.preventDefault();
@@ -77,8 +131,8 @@ export default function TodayPage() {
       const name = (id: string | null) => (id ? contactById.get(id)?.name ?? "" : "");
       const r = await aiToday({
         overdue: v.overdue.slice(0, 6).map((t) => ({ title: t.title, who: name(t.contact_id) })),
-        stale: v.stale.map((s) => ({ deal: s.deal.title, who: name(s.deal.contact_id), days: s.days, value: s.deal.value })),
-        fresh: v.leads7.slice(0, 5).map((d) => ({ name: name(d.contact_id), company: d.project, days: Math.floor((nowMs() - new Date(d.created_at).getTime()) / DAY) })),
+        stale: v.attention.map((s) => ({ deal: s.deal.title, who: name(s.deal.contact_id), days: s.quiet, value: s.deal.value })),
+        fresh: v.open.filter((d) => nowMs() - new Date(d.created_at).getTime() < 7 * DAY).slice(0, 5).map((d) => ({ name: name(d.contact_id), company: d.project, days: Math.floor((nowMs() - new Date(d.created_at).getTime()) / DAY) })),
       });
       setAi({ items: r.result.items, live: r.live });
     } catch (e) { toast((e as Error).message, "error"); }
@@ -87,137 +141,149 @@ export default function TodayPage() {
 
   if (!data.contacts.length && !data.deals.length) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-[1.75rem] font-semibold sm:text-3xl">{greet}.</h1>
-        <Card><Empty icon="home" title="No leads yet" text="Add your first lead and watch the reply, call task and follow-ups happen on their own." action={<div className="flex gap-2"><Button onClick={() => setModal("lead")}>Add a lead</Button><Button variant="soft" onClick={() => setModal("import")}>Import CSV</Button></div>} /></Card>
+      <div>
+        <h1 className="mb-5 text-[22px] font-semibold">{greet}{me.name ? `, ${me.name}` : ""}</h1>
+        <Card><Empty icon="pipeline" title="Your CRM is ready" text="Add your first deal or import your contacts to see your dashboard come to life." action={<div className="flex gap-2"><Button onClick={() => setModal("lead")}>Add a deal</Button><Button variant="soft" onClick={() => setModal("import")}>Import contacts</Button></div>} /></Card>
         {modal === "lead" && <NewLeadModal onClose={() => setModal(null)} />}
         {modal === "import" && <ImportModal onClose={() => setModal(null)} />}
       </div>
     );
   }
 
-  const Kpi = ({ label, value, sub, href }: { label: string; value: string; sub: string; href?: string }) => {
-    const body = <Card className={`h-full ${href ? "transition hover:border-[#cfd6e6]" : ""}`}><div className="text-sm font-semibold text-muted">{label}</div><div className="mt-1 font-display text-[1.9rem] font-semibold leading-tight text-ink">{value}</div><div className="text-sm text-muted">{sub}</div></Card>;
-    return href ? <Link href={href}>{body}</Link> : body;
-  };
+  const maxMonth = Math.max(1, ...v.months.map((m) => m.total));
+  const maxStage = Math.max(1, ...v.funnel.map((f) => f.total));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[1.75rem] font-semibold sm:text-3xl">{greet}.</h1>
-          <p className="mt-1 text-muted">{dueNow.length ? `${dueNow.length} thing${dueNow.length === 1 ? "" : "s"} to do today. The rest is on autopilot.` : "Nothing urgent. Autopilot is handling the follow-ups."}</p>
+          <h1 className="text-[22px] font-semibold leading-tight">{greet}{me.name ? `, ${me.name}` : ""}</h1>
+          <p className="mt-0.5 text-[13.5px] text-muted">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} · {v.overdue.length ? `${v.overdue.length} overdue task${v.overdue.length === 1 ? "" : "s"}` : "No overdue tasks"}</p>
         </div>
-        <Button icon="plus" onClick={() => setModal("lead")}>New lead</Button>
+        <div className="flex items-center gap-2">
+          <select className="field !h-9 !w-auto !py-0" aria-label="Period" value={days} onChange={(e) => setDays(Number(e.target.value))}>{PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
+          <AiButton onClick={suggest} busy={aiBusy}>Suggest priorities</AiButton>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="New leads (7 days)" value={String(v.leads7.length)} sub={`${data.deals.length} deals in total`} href="/pipeline" />
-        <Kpi label="Average first reply" value={replyText} sub="Sent automatically" href="/automations" />
-        <Kpi label="Visits coming up" value={String(v.upcoming.length)} sub={v.upcoming[0] ? `Next: ${new Date(v.upcoming[0].starts_at).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}` : "None booked"} href="/pipeline" />
-        <Kpi label="Quotes out" value={money(v.quotedSum)} sub={`${v.quoted.length} waiting for a decision`} href="/pipeline" />
-        <Kpi label="Revenue won" value={money(v.wonSum)} sub={`${v.won.length} deal${v.won.length === 1 ? "" : "s"}`} />
-        <Kpi label="Messages sent for you" value={String(v.sent)} sub="No one had to remember" href="/automations" />
-        <Kpi label="To do today" value={String(dueNow.length)} sub={v.overdue.length ? `${v.overdue.length} overdue` : "All on track"} />
-        <Kpi label="Needs attention" value={String(v.stale.length)} sub="Deals gone quiet" />
+      {ai && (
+        <div className="rounded-[10px] border border-[#d6d6fb] bg-[#f6f6ff] px-4 py-3">
+          <div className="mb-1.5 flex items-center justify-between"><span className="text-[13px] font-semibold text-[#4344c9]">Suggested priorities{ai.live ? "" : " (sample)"}</span><button onClick={() => setAi(null)} className="text-[13px] font-semibold text-muted hover:text-ink">Dismiss</button></div>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-ink">{ai.items.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Kpi label="Open pipeline" value={money(v.openSum)} sub={<span className="text-muted">{v.open.length} open deal{v.open.length === 1 ? "" : "s"}</span>} href="/pipeline" />
+        <Kpi label="Weighted forecast" value={money(v.forecast)} sub={<span className="text-muted">By stage probability</span>} href="/reports" />
+        <Kpi label="Revenue won" value={money(v.wonSum)} sub={<Delta d={v.wonDelta} />} href="/reports" />
+        <Kpi label="New deals" value={String(v.newN)} sub={<Delta d={v.newDelta} />} href="/pipeline" />
+        <Kpi label="Win rate" value={v.winRate === null ? "–" : `${v.winRate}%`} sub={<span className="text-muted">{v.closed} closed, {period}</span>} href="/reports" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <h2 className="mb-4 text-lg font-semibold">Where your leads are</h2>
-          <ul className="space-y-2.5">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel title="Revenue won by month" className="lg:col-span-2" action={<Link href="/reports" className={more}>Open reports</Link>}>
+          <div className="flex h-52 items-end gap-3" role="img" aria-label={`Revenue won by month: ${v.months.map((m) => `${m.label} ${money(m.total)}`).join(", ")}`}>
+            {v.months.map((m) => (
+              <div key={m.key} className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5" title={`${m.label}: ${money(m.total)} from ${m.n} deal${m.n === 1 ? "" : "s"}`}>
+                <span className="text-[12px] font-semibold text-ink">{m.total ? compact(m.total) : ""}</span>
+                <span className="w-full max-w-[72px] rounded-t-[4px] bg-teal transition group-hover:bg-teal-d" style={{ height: `${Math.max(m.total ? 4 : 1, (m.total / maxMonth) * 78)}%`, opacity: m.total ? 1 : .25 }} />
+                <span className="text-[12px] text-muted">{m.label}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title={`Pipeline by stage`} action={<Link href="/pipeline" className={more}>View deals</Link>}>
+          <ul className="space-y-3">
             {v.funnel.map((f) => (
-              <li key={f.id} className="grid grid-cols-[110px_1fr_28px] items-center gap-3 text-sm sm:grid-cols-[130px_1fr_28px]">
-                <span className="font-medium text-ink">{f.label}</span>
-                <span className="h-2.5 overflow-hidden rounded-full bg-cloud"><span className={`block h-full rounded-full ${f.kind === "won" ? "bg-emerald-500" : f.kind === "lost" ? "bg-slate-400" : "bg-teal"}`} style={{ width: `${(f.n / maxN) * 100}%` }} /></span>
-                <span className="text-right font-semibold text-ink">{f.n}</span>
+              <li key={f.id}>
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]"><span className="font-medium text-ink">{f.label} <span className="text-muted">· {f.n}</span></span><span className="font-semibold text-ink">{f.total ? money(f.total) : "–"}</span></div>
+                <div className="h-2 overflow-hidden rounded-sm bg-[#eef1f6]"><div className="h-full rounded-sm bg-[#5a5bef]" style={{ width: `${(f.total / maxStage) * 100}%` }} /></div>
               </li>
             ))}
           </ul>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold">What autopilot did</h2><Link href="/automations" className="text-sm font-semibold text-teal-d hover:underline">See all</Link></div>
-          {log.length === 0 ? <p className="text-muted">Add a lead to see it work.</p> : (
-            <ol className="space-y-3">
-              {log.map((l) => {
-                const c = (() => { const d = data.deals.find((x) => x.id === l.deal_id); return d?.contact_id ? contactById.get(d.contact_id) : null; })();
-                return (
-                  <li key={l.id} className="flex gap-3 text-sm">
-                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${toneDot[l.tone]}`} />
-                    <div className="min-w-0 flex-1"><div className="text-ink">{l.message}</div><div className="text-[12.5px] text-muted">{c ? `${c.name} · ` : ""}{timeAgo(l.created_at)}</div></div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </Card>
+        </Panel>
       </div>
 
-      <Card>
-        <h2 className="mb-1 text-lg font-semibold">Which lead sources pay off</h2>
-        <p className="mb-4 text-sm text-muted">So you know where to spend your ad money.</p>
-        <div className="-mx-2 overflow-x-auto px-2">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead><tr className="border-b border-line text-[12.5px] uppercase tracking-wide text-muted"><th className="py-2 pr-3 font-semibold">Source</th><th className="px-2 font-semibold">Leads</th><th className="px-2 font-semibold">Visits</th><th className="px-2 font-semibold">Quotes</th><th className="px-2 font-semibold">Won</th><th className="px-2 font-semibold">Close rate</th><th className="pl-2 text-right font-semibold">Revenue</th></tr></thead>
-            <tbody className="divide-y divide-line">
-              {v.sources.map((s) => (
-                <tr key={s.src}><td className="py-2.5 pr-3 font-semibold text-ink">{s.src}</td><td className="px-2">{s.leads}</td><td className="px-2">{s.visits}</td><td className="px-2">{s.quotes}</td><td className="px-2">{s.won}</td><td className="px-2">{s.rate}%</td><td className="pl-2 text-right font-display font-semibold text-ink">{money(s.revenue)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <h2 className="mb-1 text-lg font-semibold">Your to-do list</h2>
-          {dueNow.length === 0 && v.later.length === 0 && <p className="py-4 text-muted">You&apos;re all caught up.</p>}
-          <ul className="divide-y divide-line">
-            {[...dueNow, ...v.later].map((t) => {
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel title="My tasks" action={<Badge tone={v.overdue.length ? "rose" : "gray"}>{v.overdue.length ? `${v.overdue.length} overdue` : `${v.tasks.length} open`}</Badge>}>
+          {v.tasks.length === 0 && <p className="pb-3 text-[13.5px] text-muted">You&apos;re all caught up.</p>}
+          <ul className="-mx-1 divide-y divide-line">
+            {v.tasks.slice(0, 6).map((t) => {
               const c = t.contact_id ? contactById.get(t.contact_id) : null;
               const late = !!t.due_date && t.due_date < today;
               return (
-                <li key={t.id} className="flex items-center gap-3 py-2.5">
-                  <button onClick={() => update("tasks", t.id, { done: true })} aria-label={`Mark “${t.title}” done`} className="grid size-6 shrink-0 place-items-center rounded-full border-2 border-[#cfd6e6] text-transparent transition hover:border-teal hover:bg-teal-t hover:text-teal"><Icon name="check" className="size-3.5" /></button>
-                  <div className="min-w-0 flex-1"><div className="truncate font-medium text-ink">{t.title}</div>{c && <Link href={`/contacts/${c.id}`} className="text-[13px] text-muted hover:text-teal-d hover:underline">{c.name}</Link>}</div>
-                  <span className={`shrink-0 text-[13px] font-semibold ${late ? "text-rose" : "text-muted"}`}>{dueLabel(t.due_date)}</span>
+                <li key={t.id} className="flex items-center gap-2.5 px-1 py-2">
+                  <button onClick={() => update("tasks", t.id, { done: true })} aria-label={`Mark “${t.title}” done`} className="pill grid size-[18px] shrink-0 place-items-center rounded-full border-[1.5px] border-[#b9c2d6] text-transparent transition hover:border-teal hover:bg-teal-t hover:text-teal"><Icon name="check" className="size-3" /></button>
+                  <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-medium text-ink">{t.title}</div>{c && <Link href={`/contacts/${c.id}`} className="text-[12.5px] text-muted hover:text-teal-d hover:underline">{c.name}</Link>}</div>
+                  <span className={`shrink-0 text-[12.5px] font-semibold ${late ? "text-[#c42b52]" : "text-muted"}`}>{dueLabel(t.due_date)}</span>
                 </li>
               );
             })}
           </ul>
-          <form onSubmit={addQuick} className="mt-4 flex gap-2">
-            <input className="field" value={quickTask} onChange={(e) => setQuickTask(e.target.value)} placeholder="Add a task for today and press Enter" aria-label="New task" />
-            <Button type="submit" variant="soft" icon="plus" aria-label="Add task" className="!px-4"><span className="sr-only">Add</span></Button>
+          <form onSubmit={addQuick} className="mt-3 flex gap-2">
+            <input className="field" value={quickTask} onChange={(e) => setQuickTask(e.target.value)} placeholder="Add a task for today" aria-label="New task" />
+            <Button type="submit" variant="soft">Add</Button>
           </form>
-        </Card>
+        </Panel>
 
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Gone quiet</h2><Badge tone="sun">{v.stale.length}</Badge></div>
-            {v.stale.length === 0 ? <p className="text-muted">Every deal has moved recently.</p> : (
-              <ul className="space-y-2.5">{v.stale.map(({ deal, days }) => (
-                <li key={deal.id}><Link href={`/pipeline?deal=${deal.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 transition hover:bg-cloud">
-                  <span className="min-w-0"><span className="block truncate font-semibold text-ink">{contactById.get(deal.contact_id ?? "")?.name ?? deal.title}</span><span className="block truncate text-[13px] text-muted">{deal.project} · {money(deal.value)}</span></span>
-                  <span className="shrink-0 text-[13px] font-semibold text-[#9a5a00]">{days}d</span></Link></li>
-              ))}</ul>
-            )}
-          </Card>
-          <Card className="!border-transparent bg-gradient-to-br from-white to-iris-t/50">
-            <div className="mb-2 flex items-center gap-2"><Icon name="sparkle" className="size-5 text-iris" /><h2 className="text-lg font-semibold">AI helper</h2></div>
-            {!ai ? (<><p className="mb-4 text-muted">Get three quick suggestions based on your tasks and deals.</p><AiButton onClick={suggest} busy={aiBusy}>What should I do today?</AiButton></>) : (
-              <>
-                <ul className="mb-3 space-y-2.5">{ai.items.map((x, i) => <li key={i} className="flex gap-2.5"><span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-iris text-[11px] font-bold text-white">{i + 1}</span><span className="text-ink">{x}</span></li>)}</ul>
-                {!ai.live && <p className="mb-3 text-[13px] text-muted">Sample suggestions. Add an Anthropic API key for personalised ones.</p>}
-                <button onClick={suggest} className="text-sm font-semibold text-teal-d hover:underline" disabled={aiBusy}>{aiBusy ? "Thinking…" : "Refresh"}</button>
-              </>
-            )}
-          </Card>
-        </div>
+        <Panel title="Deals needing attention" action={<Link href="/pipeline" className={more}>All deals</Link>}>
+          {v.attention.length === 0 ? <p className="text-[13.5px] text-muted">Every open deal has moved in the last week and none are past their close date.</p> : (
+            <ul className="-mx-1 divide-y divide-line">{v.attention.map(({ deal, quiet, late }) => (
+              <li key={deal.id}><Link href={`/pipeline?deal=${deal.id}`} className="flex items-center justify-between gap-3 rounded px-1 py-2 hover:bg-cloud">
+                <span className="min-w-0"><span className="block truncate text-[13.5px] font-semibold text-ink">{deal.title}</span><span className="text-[12.5px] text-muted">{money(deal.value)} · {columnOf(deal, pipelines).label}</span></span>
+                {late ? <Badge tone="rose">Past close date</Badge> : <Badge tone="sun">{quiet} days quiet</Badge>}
+              </Link></li>
+            ))}</ul>
+          )}
+        </Panel>
+
+        <Panel title="Coming up" action={<Link href="/calendar" className={more}>Calendar</Link>}>
+          {v.upcoming.length === 0 ? <p className="text-[13.5px] text-muted">No meetings or bookings scheduled.</p> : (
+            <ul className="-mx-1 divide-y divide-line">{v.upcoming.map((u) => { const d = new Date(u.at); return (
+              <li key={u.id}><Link href={u.href} className="flex items-center gap-3 rounded px-1 py-2 hover:bg-cloud">
+                <span className="grid w-11 shrink-0 place-items-center rounded-md border border-line bg-[#f8f9fc] py-1 leading-tight"><span className="text-[10.5px] font-semibold text-[#c42b52]">{d.toLocaleDateString(undefined, { month: "short" })}</span><span className="text-[15px] font-semibold text-ink">{d.getDate()}</span></span>
+                <span className="min-w-0"><span className="block truncate text-[13.5px] font-semibold text-ink">{u.title}{u.who ? ` with ${u.who}` : ""}</span><span className="text-[12.5px] text-muted">{d.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</span></span>
+              </Link></li>
+            ); })}</ul>
+          )}
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel title="Lead sources" className="lg:col-span-1">
+          <table className="w-full text-left text-[13px]">
+            <thead><tr className="border-b border-line text-muted"><th className="pb-2 font-semibold">Source</th><th className="pb-2 text-right font-semibold">Deals</th><th className="pb-2 text-right font-semibold">Win rate</th><th className="pb-2 text-right font-semibold">Won</th></tr></thead>
+            <tbody className="divide-y divide-line">{v.sources.map((s) => (
+              <tr key={s.src}><td className="py-2 font-medium text-ink">{s.src}</td><td className="py-2 text-right">{s.leads}</td><td className="py-2 text-right">{s.rate === null ? "–" : `${s.rate}%`}</td><td className="py-2 text-right font-semibold text-ink">{s.revenue ? money(s.revenue) : "–"}</td></tr>
+            ))}</tbody>
+          </table>
+        </Panel>
+
+        <Panel title="Team performance" action={<Link href="/team" className={more}>Team</Link>}>
+          {v.owners.length === 0 ? <p className="text-[13.5px] text-muted">Assign deals to team members to compare them here.</p> : (
+            <table className="w-full text-left text-[13px]">
+              <thead><tr className="border-b border-line text-muted"><th className="pb-2 font-semibold">Owner</th><th className="pb-2 text-right font-semibold">Open</th><th className="pb-2 text-right font-semibold">Won</th></tr></thead>
+              <tbody className="divide-y divide-line">{v.owners.map((o) => (
+                <tr key={o.name}><td className="py-2"><span className="inline-flex items-center gap-2 font-medium text-ink"><Avatar name={o.name} size="size-6 text-[10px]" />{o.name}</span></td><td className="py-2 text-right">{o.open ? money(o.open) : "–"} <span className="text-muted">({o.openN})</span></td><td className="py-2 text-right font-semibold text-ink">{o.won ? money(o.won) : "–"}</td></tr>
+              ))}</tbody>
+            </table>
+          )}
+        </Panel>
+
+        <Panel title="Recent activity" action={<Link href="/automations" className={more}>Automation log</Link>}>
+          {v.feed.length === 0 ? <p className="text-[13.5px] text-muted">Notes, calls, emails and automated steps show up here.</p> : (
+            <ol className="space-y-3">{v.feed.map((f) => (
+              <li key={f.id} className="flex gap-2.5">
+                <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-[#eef1f6] text-muted"><Icon name={f.icon} className="size-3.5" /></span>
+                <div className="min-w-0 flex-1"><div className="line-clamp-2 text-[13px] text-ink">{f.text}</div><div className="text-[12px] text-muted">{f.who ? `${f.who} · ` : ""}{timeAgo(f.at)}</div></div>
+              </li>
+            ))}</ol>
+          )}
+        </Panel>
       </div>
 
       {modal === "lead" && <NewLeadModal onClose={() => setModal(null)} />}
-      {modal === "contact" && <AddContactModal onClose={() => setModal(null)} />}
       {modal === "import" && <ImportModal onClose={() => setModal(null)} />}
     </div>
   );

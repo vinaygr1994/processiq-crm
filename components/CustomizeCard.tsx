@@ -21,7 +21,7 @@ export function CustomizeCard() {
   };
   return (
     <Card>
-      <h2 className="mb-1 text-lg font-semibold">Custom fields</h2>
+      <h2 className="mb-1 text-[15px] font-semibold">Custom fields</h2>
       <p className="mb-4 text-muted">Add the fields your business tracks on contacts and deals.</p>
 
       <div className="text-sm font-semibold text-ink">Custom fields</div>

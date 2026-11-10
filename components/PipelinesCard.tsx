@@ -49,7 +49,7 @@ export function PipelinesCard() {
   if (!p) return null;
   return (
     <Card>
-      <h2 className="mb-1 text-lg font-semibold">Industry and pipelines</h2>
+      <h2 className="mb-1 text-[15px] font-semibold">Industry and pipelines</h2>
       <p className="mb-4 text-muted">Pick your industry to get a ready-made pipeline, then rename, reorder or add stages. Each stage has a win probability for your forecast.</p>
       <Field label="Your industry">
         <select className="field" value={industry} onChange={(e) => applyIndustry(e.target.value)}>{TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.industry}</option>)}</select>

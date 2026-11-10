@@ -21,7 +21,7 @@ export function ContactBookings({ contactId }: { contactId: string }) {
   const name = (id: string | null) => data.services.find((s) => s.id === id)?.name ?? "Booking";
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold">Bookings</h2><Button size="sm" variant="soft" icon="plus" onClick={() => setBook(true)}>Book</Button></div>
+      <div className="mb-3 flex items-center justify-between"><h2 className="text-[15px] font-semibold">Bookings</h2><Button size="sm" variant="soft" icon="plus" onClick={() => setBook(true)}>Book</Button></div>
       <p className="mb-3 text-[13px] text-muted">{visits} visit{visits === 1 ? "" : "s"}{noShows ? ` · ${noShows} no-show${noShows === 1 ? "" : "s"}` : ""}</p>
       {ms.map((m) => { const p = data.plans.find((x) => x.id === m.plan_id); const live = m.status === "active" && (!m.ends_on || m.ends_on >= today); return (
         <div key={m.id} className="mb-2 flex items-center justify-between rounded-2xl bg-teal-t/50 px-4 py-2.5 text-sm"><span><strong>{p?.name ?? "Membership"}</strong>{m.credits !== null ? ` · ${m.credits} left` : ""}{m.ends_on ? ` · until ${m.ends_on}` : ""}</span><Badge tone={live ? "green" : "gray"}>{live ? "Active" : "Ended"}</Badge></div>

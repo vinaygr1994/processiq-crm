@@ -23,11 +23,11 @@ export default function LeadForm() {
     } catch (x) { setErr((x as Error).message); setState("idle"); }
   };
   if (state === "done") return (
-    <main className="mx-auto grid min-h-dvh max-w-md place-items-center px-5"><div className="text-center"><div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-teal-t text-2xl text-teal-d">✓</div><h1 className="text-2xl font-semibold">Thanks, we got it</h1><p className="mt-2 text-muted">We&apos;ll be in touch shortly to talk about your project.</p></div></main>
+    <main className="mx-auto grid min-h-dvh max-w-md place-items-center px-5"><div className="text-center"><div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-teal-t text-2xl text-teal-d">✓</div><h1 className="text-[22px] font-semibold">Thanks, we got it</h1><p className="mt-2 text-muted">We&apos;ll be in touch shortly to talk about your project.</p></div></main>
   );
   return (
     <main className="mx-auto max-w-md px-5 py-10">
-      <h1 className="text-2xl font-semibold">Get your free quote</h1>
+      <h1 className="text-[22px] font-semibold">Get your free quote</h1>
       <p className="mt-1 text-muted">Tell us about your project. We&apos;ll call you back fast.</p>
       <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
         <label className="block"><span className="mb-1.5 block text-sm font-semibold">Your name</span><input className="field" value={f.name} onChange={set("name")} autoComplete="name" required /></label>

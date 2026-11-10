@@ -90,7 +90,7 @@ export default function MembershipsPage() {
         {[["Active members", String(activeCount)], ["Monthly value", money(Math.round(mrr))], ["Plans", String(data.plans.filter((p) => p.active).length)]].map(([l, v]) => <Card key={l} className="!p-4"><div className="text-[13px] font-medium text-muted">{l}</div><div className="font-display text-2xl font-semibold text-ink">{v}</div></Card>)}
       </div>
       <section className="space-y-3">
-        <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Plans</h2><Button size="sm" variant="soft" icon="plus" onClick={() => setPlan("new")}>New plan</Button></div>
+        <div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold">Plans</h2><Button size="sm" variant="soft" icon="plus" onClick={() => setPlan("new")}>New plan</Button></div>
         {data.plans.length === 0 ? <Card><p className="text-sm text-muted">No plans yet. Create a class pack or an unlimited monthly plan.</p></Card> : (
           <div className="grid gap-3 sm:grid-cols-3">{data.plans.map((p) => (
             <button key={p.id} type="button" onClick={() => setPlan(p)} className="rounded-3xl border border-line bg-white p-4 text-left hover:border-teal">
@@ -101,7 +101,7 @@ export default function MembershipsPage() {
         )}
       </section>
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Members</h2>
+        <h2 className="text-[15px] font-semibold">Members</h2>
         <Card className="!p-0 overflow-hidden">
           {members.length === 0 ? <p className="px-5 py-6 text-sm text-muted">No members yet.</p> : (
             <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm">

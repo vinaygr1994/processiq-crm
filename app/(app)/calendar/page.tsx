@@ -69,7 +69,7 @@ export default function CalendarPage() {
           <button onClick={goToday} className="h-9 rounded-full px-3 text-sm font-semibold hover:bg-cloud">Today</button>
           <button onClick={() => move(1)} aria-label="Next" className="grid size-9 place-items-center rounded-full hover:bg-cloud"><Icon name="chevron" className="size-4" /></button>
         </div>
-        <h2 className="min-w-40 text-lg font-semibold" aria-live="polite">{title}</h2>
+        <h2 className="min-w-40 text-[15px] font-semibold" aria-live="polite">{title}</h2>
         <div className="ml-auto flex items-center gap-2">
           {reps.length > 0 && <select className="field !w-auto !py-2" value={rep} onChange={(e) => setRep(e.target.value)} aria-label="Filter by rep"><option value="">Everyone</option>{reps.map((r) => <option key={r}>{r}</option>)}</select>}
           <div className="flex rounded-full border border-line bg-white p-1" role="tablist">
@@ -102,7 +102,7 @@ export default function CalendarPage() {
 
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">{selDate.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</h2>
+          <h2 className="text-[15px] font-semibold">{selDate.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</h2>
           <Button size="sm" variant="soft" icon="plus" onClick={() => setPick(selDate)}>Book a visit this day</Button>
         </div>
         {selEvents.length === 0 ? <p className="text-muted">Nothing scheduled.</p> : (

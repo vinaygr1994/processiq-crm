@@ -57,7 +57,7 @@ export default function ContactsPage() {
 
   return (
     <div>
-      <PageHeader title="Contacts" sub={`${data.contacts.length} ${data.contacts.length === 1 ? "person" : "people"} in your CRM`}
+      <PageHeader title="Contacts" sub="Everyone you do business with, and who looks after them."
         action={<div className="flex gap-2"><Button variant="soft" icon="upload" onClick={() => setModal("import")}>Import</Button><Button icon="plus" onClick={() => setModal("add")}>Add contact</Button></div>} />
 
       {data.contacts.length === 0 ? (
@@ -65,25 +65,22 @@ export default function ContactsPage() {
           action={<div className="flex gap-2"><Button onClick={() => setModal("add")}>Add contact</Button><Button variant="soft" onClick={() => setModal("import")}>Import CSV</Button></div>} /></Card>
       ) : (
         <>
-          <div className="mb-4 space-y-3">
-            <div className="relative">
-              <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted" />
-              <input className="field !pl-11" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email, company or phone" aria-label="Search contacts" />
-            </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => setTag("")} className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${!tag ? "border-teal bg-teal-t text-teal-d" : "border-line bg-white hover:bg-cloud"}`}>Everyone</button>
-                {tags.map(([t, n]) => (
-                  <button key={t} onClick={() => setTag(tag === t ? "" : t)} className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${tag === t ? "border-teal bg-teal-t text-teal-d" : "border-line bg-white hover:bg-cloud"}`}>{t} <span className="text-muted">{n}</span></button>
-                ))}
-              </div>
-            )}
+          <div className="mb-3 flex gap-1 border-b border-line" role="tablist" aria-label="Views">
+            {([["", "All contacts", data.contacts.length], ["_me", "My contacts", data.contacts.filter((c) => c.owner === me.name).length], ["_none", "Unassigned", data.contacts.filter((c) => !c.owner).length]] as const).map(([k, l, n]) => (
+              <button key={k} role="tab" aria-selected={owner === k} onClick={() => { setOwner(k); setSel([]); }} className={`pill -mb-px border-b-2 px-3 py-2 text-[13.5px] font-semibold ${owner === k ? "border-teal-d text-teal-d" : "border-transparent text-muted hover:text-ink"}`}>{l} <span className="font-normal opacity-70">{n}</span></button>
+            ))}
           </div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <select className="field !h-10 !w-auto !py-0" aria-label="Owner" value={owner} onChange={(e) => { setOwner(e.target.value); setSel([]); }}>
-              <option value="">All owners</option><option value="_me">My contacts</option><option value="_none">Unassigned</option>{team.map((n) => <option key={n} value={n}>{n}</option>)}
+            <div className="relative min-w-[220px] flex-1 sm:max-w-xs"><Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <input className="field !pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, company, phone" aria-label="Search contacts" /></div>
+            <select className="field !w-auto" aria-label="Owner" value={owner} onChange={(e) => { setOwner(e.target.value); setSel([]); }}>
+              <option value="">Any owner</option><option value="_me">Me</option><option value="_none">Unassigned</option>{team.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <span className="text-sm text-muted">{list.length} shown</span>
+            <select className="field !w-auto" aria-label="List" value={tag} onChange={(e) => setTag(e.target.value)}>
+              <option value="">Any list</option>{tags.map(([t2, n]) => <option key={t2} value={t2}>{t2} ({n})</option>)}
+            </select>
+            {(q || tag || owner) && <button onClick={() => { setQ(""); setTag(""); setOwner(""); }} className="text-[13px] font-semibold text-teal-d hover:underline">Clear filters</button>}
+            <span className="ml-auto text-[13px] text-muted">{list.length} of {data.contacts.length}</span>
           </div>
           {sel.length > 0 && (
             <div className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-ink px-4 py-2.5 text-sm text-white shadow-lg">
@@ -110,13 +107,13 @@ export default function ContactsPage() {
                   <tbody className="divide-y divide-line">
                     {list.map((c) => (
                       <tr key={c.id} className={`hover:bg-cloud/70 ${sel.includes(c.id) ? "bg-teal-t/30" : ""}`}>
-                        <td className="py-3 pl-5"><input type="checkbox" aria-label={`Select ${c.name}`} className="size-4 accent-[#0b8a8a]" checked={sel.includes(c.id)} onChange={() => toggle(c.id)} /></td>
-                        <td className="px-3 py-3"><Link href={`/contacts/${c.id}`} className="flex items-center gap-3"><Avatar name={c.name} size="size-8 text-xs" /><span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate font-semibold text-ink hover:text-teal-d">{c.name}</span>{c.unsubscribed && <Badge tone="rose">Unsubscribed</Badge>}</span><span className="block truncate text-[12.5px] text-muted">{c.email || c.phone || "No details"}</span></span></Link></td>
-                        <td className="px-3 py-3 text-body">{c.company || <span className="text-muted">–</span>}</td>
-                        <td className="px-3 py-3">{c.owner ? <span className="inline-flex items-center gap-1.5"><Avatar name={c.owner} size="size-5 text-[9px]" />{c.owner}</span> : <span className="text-muted">Unassigned</span>}</td>
-                        <td className="px-3 py-3"><span className="flex flex-wrap gap-1">{c.tags.slice(0, 2).map((t2) => <Badge key={t2} tone="teal">{t2}</Badge>)}{c.tags.length > 2 && <span className="text-[12px] text-muted">+{c.tags.length - 2}</span>}</span></td>
-                        <td className="px-3 py-3 text-muted">{c.source || "–"}</td>
-                        <td className="px-5 py-3 text-right text-[13px] text-muted">{last.get(c.id) ? timeAgo(last.get(c.id)!) : "No activity"}</td>
+                        <td className="py-2 pl-5"><input type="checkbox" aria-label={`Select ${c.name}`} className="size-4 accent-[#0b8a8a]" checked={sel.includes(c.id)} onChange={() => toggle(c.id)} /></td>
+                        <td className="px-3 py-2"><Link href={`/contacts/${c.id}`} className="flex items-center gap-3"><Avatar name={c.name} size="size-8 text-xs" /><span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate font-semibold text-ink hover:text-teal-d">{c.name}</span>{c.unsubscribed && <Badge tone="rose">Unsubscribed</Badge>}</span><span className="block truncate text-[12.5px] text-muted">{c.email || c.phone || "No details"}</span></span></Link></td>
+                        <td className="px-3 py-2 text-body">{c.company || <span className="text-muted">–</span>}</td>
+                        <td className="px-3 py-2">{c.owner ? <span className="inline-flex items-center gap-1.5"><Avatar name={c.owner} size="size-5 text-[9px]" />{c.owner}</span> : <span className="text-muted">Unassigned</span>}</td>
+                        <td className="px-3 py-2"><span className="flex flex-wrap gap-1">{c.tags.slice(0, 2).map((t2) => <Badge key={t2} tone="teal">{t2}</Badge>)}{c.tags.length > 2 && <span className="text-[12px] text-muted">+{c.tags.length - 2}</span>}</span></td>
+                        <td className="px-3 py-2 text-muted">{c.source || "–"}</td>
+                        <td className="px-5 py-2 text-right text-[13px] text-muted">{last.get(c.id) ? timeAgo(last.get(c.id)!) : "No activity"}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -53,7 +53,7 @@ export default function AutomationsPage() {
       {isDemo && (
         <Card className="!border-transparent bg-gradient-to-br from-teal-t/70 to-iris-t/60">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="max-w-xl"><h2 className="text-lg font-semibold">Try time travel</h2><p className="text-sm text-body">Demo only. Skip the clock forward to watch waits finish and follow-ups fire. In your live CRM this happens in real time.</p></div>
+            <div className="max-w-xl"><h2 className="text-[15px] font-semibold">Try time travel</h2><p className="text-sm text-body">Demo only. Skip the clock forward to watch waits finish and follow-ups fire. In your live CRM this happens in real time.</p></div>
             <div className="flex flex-wrap gap-2">
               <Button variant="soft" icon="clock" onClick={() => skip(3600000, "1 hour")}>+1 hour</Button>
               <Button variant="soft" icon="clock" onClick={() => skip(86400000, "1 day")}>+1 day</Button>
@@ -93,7 +93,7 @@ export default function AutomationsPage() {
       )}
 
       <Card>
-        <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold">Activity log</h2><span className="text-sm text-muted">Latest {log.length}</span></div>
+        <div className="mb-3 flex items-center justify-between"><h2 className="text-[15px] font-semibold">Activity log</h2><span className="text-sm text-muted">Latest {log.length}</span></div>
         {log.length === 0 ? <p className="text-muted">Nothing yet. <Link href="/pipeline" className="font-semibold text-teal-d hover:underline">Add a lead</Link> to see workflows work.</p> : (
           <ol className="divide-y divide-line">
             {log.map((l) => {
@@ -115,7 +115,7 @@ export default function AutomationsPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="New workflow">
           <div className="anim-fade absolute inset-0 bg-ink/40" onClick={() => setPicker(false)} />
           <div className="anim-pop relative flex max-h-[90dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:max-w-2xl sm:rounded-3xl">
-            <div className="flex items-center justify-between border-b border-line px-6 py-4"><h2 className="text-lg font-semibold">New workflow</h2><button onClick={() => setPicker(false)} aria-label="Close" className="grid size-9 place-items-center rounded-full text-muted hover:bg-cloud"><Icon name="x" className="size-5" /></button></div>
+            <div className="flex items-center justify-between border-b border-line px-6 py-4"><h2 className="text-[15px] font-semibold">New workflow</h2><button onClick={() => setPicker(false)} aria-label="Close" className="grid size-9 place-items-center rounded-full text-muted hover:bg-cloud"><Icon name="x" className="size-5" /></button></div>
             <div className="space-y-2 overflow-y-auto p-4">
               <button onClick={() => create()} className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-[#b7c1d6] p-4 text-left hover:border-teal hover:bg-teal-t"><span className="grid size-10 place-items-center rounded-xl bg-teal-t text-teal-d"><Icon name="plus" className="size-5" /></span><span><span className="block font-semibold text-ink">Start from scratch</span><span className="text-sm text-muted">Pick a trigger and add your own steps.</span></span></button>
               <div className="px-1 pt-2 text-xs font-bold uppercase tracking-wider text-muted">Or start from a ready-made one</div>

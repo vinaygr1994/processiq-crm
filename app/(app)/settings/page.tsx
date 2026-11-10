@@ -63,7 +63,7 @@ export default function SettingsPage() {
       <PageHeader title="Settings" sub="Your business details and connections." />
 
       <Card>
-        <h2 className="mb-1 text-lg font-semibold">Your business</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Your business</h2>
         <p className="mb-5 text-muted">Used on the emails you send. Your mailing address is required by law on marketing emails.</p>
         <form onSubmit={save} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -78,7 +78,7 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 text-lg font-semibold">Team &amp; links</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Team &amp; links</h2>
         <p className="mb-5 text-muted">Used by autopilot to assign leads, alert you and fill in your emails.</p>
         <form onSubmit={save} className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-cloud px-4 py-3"><span><span className="block font-semibold text-ink">Team members and lead assignment</span><span className="text-[13.5px] text-muted">{(settings?.reps ?? []).length ? `New leads go to ${(settings?.reps ?? []).join(", ")} in turn.` : "Invite people, set their permissions and choose who gets new leads."}</span></span><Link href="/team" className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-teal">Manage team</Link></div>
@@ -95,7 +95,7 @@ export default function SettingsPage() {
       <CustomizeCard />
 
       <Card>
-        <h2 className="mb-1 text-lg font-semibold">Lead sources</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Lead sources</h2>
         <p className="mb-4 text-muted">Send leads from your ads and website straight into the pipeline. Workflows reply and follow up the moment they arrive.</p>
         {isDemo && <p className="mb-3 rounded-xl bg-sun-t px-3 py-2 text-sm text-[#9a5a00]">Demo mode: these links are examples. They work once your CRM is live.</p>}
         <div className="space-y-4">
@@ -114,7 +114,7 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 text-lg font-semibold">Connections</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Connections</h2>
         <p className="text-muted">What&apos;s switched on for this CRM.</p>
         <ul className="mt-2 divide-y divide-line">
           <Check ok={!isDemo} label="Database & login" hint={isDemo ? "Running in demo mode: data stays in this browser. Add Supabase keys to save data online." : "Your data is stored securely in Supabase."} />
@@ -125,7 +125,7 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 text-lg font-semibold">Your data</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Your data</h2>
         <p className="mb-4 text-muted">Your contacts are always yours. Download them any time.</p>
         <div className="flex flex-wrap gap-2">
           <Button variant="soft" icon="download" onClick={exportContacts}>Export contacts (CSV)</Button>

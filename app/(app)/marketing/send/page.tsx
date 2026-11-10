@@ -175,7 +175,7 @@ function SendWizard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/marketing" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink"><Icon name="back" className="size-4" />Marketing</Link>
-        <h1 className="font-display text-2xl font-semibold text-ink sm:text-[28px]">Send an email</h1>
+        <h1 className="font-display text-[22px] font-semibold text-ink sm:text-[28px]">Send an email</h1>
       </div>
 
       <ol className="grid grid-cols-3 gap-2 text-sm font-semibold" aria-label="Steps">
@@ -193,7 +193,7 @@ function SendWizard() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <Card className="space-y-5">
             <div>
-              <h2 className="text-lg font-semibold">Who should get this?</h2>
+              <h2 className="text-[15px] font-semibold">Who should get this?</h2>
               <div className="mt-3 grid gap-2 sm:grid-cols-4">
                 {MODES.map((m) => (
                   <button key={m.id} type="button" aria-pressed={mode === m.id} onClick={() => { setMode(m.id); if (m.id === "one") setIds(ids.slice(0, 1)); }}
@@ -245,7 +245,7 @@ function SendWizard() {
       {step === 2 && (
         <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
           <Card className="h-fit space-y-4">
-            <h2 className="text-lg font-semibold">Check the details</h2>
+            <h2 className="text-[15px] font-semibold">Check the details</h2>
             <dl className="divide-y divide-line text-sm">
               {[["From", `${from}${status?.from ? ` <${status.from}>` : ""}`], ["To", `${audienceLabel} (${recipients.length})`], ["Subject", fill(subject, recipients[0] ?? { name: "there", company: "" })], ["Type", marketing ? "Marketing (unsubscribe link and address added)" : "One-to-one"]].map(([k, v]) => (
                 <div key={k} className="grid grid-cols-[80px_1fr] gap-2 py-2.5"><dt className="text-muted">{k}</dt><dd className="min-w-0 break-words font-medium text-ink">{v}</dd></div>
