@@ -486,3 +486,8 @@ create policy "crm_select" on public.messages for select to authenticated using 
 create policy "crm_insert" on public.messages for insert to authenticated with check (owner_id = public.crm_org() and public.crm_role() <> 'viewer' and not public.crm_blocked());
 create policy "crm_update" on public.messages for update to authenticated using (owner_id = public.crm_org() and public.crm_role() <> 'viewer' and not public.crm_blocked()) with check (owner_id = public.crm_org());
 create policy "crm_delete" on public.messages for delete to authenticated using (owner_id = public.crm_org() and public.crm_role() in ('owner','admin','manager'));
+
+
+-- ===== 014_demo_data.sql =====
+-- Remembers which sample records were loaded, so "Remove demo data" deletes exactly those. Safe to run again.
+alter table public.settings add column if not exists demo_ids jsonb;

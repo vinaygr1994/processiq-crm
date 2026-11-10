@@ -115,6 +115,7 @@ export interface EmailLog {
   created_at: string;
 }
 export interface Settings {
+  demo_ids?: Record<string, string[]> | null;
   id: string;
   business_name: string;
   sender_name: string;

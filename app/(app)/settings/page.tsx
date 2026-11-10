@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Button, Card, ConfirmModal, Field, PageHeader } from "@/components/ui";
 import { useCrm } from "@/lib/store";
+import { DEMO_REPS, loadDemoData, removeDemoData, savedDemoIds } from "@/lib/demoData";
 import { isDemo } from "@/lib/config";
 import { toCsv } from "@/lib/csv";
 import { useStatus } from "@/lib/status";
@@ -19,6 +20,44 @@ function Copy({ label, hint, value }: { label: string; hint: string; value: stri
       <div className="flex gap-2"><input readOnly className="field !py-2 font-mono text-[13px]" value={value} onFocus={(e) => e.target.select()} aria-label={label} />
         <Button variant="soft" size="sm" onClick={() => { navigator.clipboard?.writeText(value).then(() => toast("Copied"), () => toast("Select the text and copy it", "error")); }}>Copy</Button></div>
     </div>
+  );
+}
+
+function DemoDataCard() {
+  const { settings, saveSettings, reload, toast, can } = useCrm();
+  const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState<"load" | "remove" | null>(null);
+  const saved = savedDemoIds(settings);
+  if (!can("settings")) return null;
+  async function load() {
+    setBusy(true);
+    try {
+      const r = await loadDemoData(settings);
+      await saveSettings({ demo_ids: r.ids as Record<string, string[]>, reps: [...new Set([...(settings?.reps ?? []), ...DEMO_REPS])] });
+      await reload();
+      toast(r.skipped.length ? `Added ${r.added} sample records. Skipped: ${r.skipped.join(", ")} (run the latest database updates first).` : `Added ${r.added} sample records`, r.added ? "ok" : "error");
+    } catch (e) { toast((e as Error).message, "error"); }
+    setBusy(false);
+  }
+  async function clear() {
+    if (!saved) return;
+    setBusy(true);
+    try {
+      const n = await removeDemoData(saved);
+      await saveSettings({ demo_ids: null, reps: saved.reps_before ?? (settings?.reps ?? []).filter((x) => !DEMO_REPS.includes(x)) });
+      await reload();
+      toast(`Removed ${n} sample records`);
+    } catch (e) { toast((e as Error).message, "error"); }
+    setBusy(false);
+  }
+  return (
+    <Card>
+      <h2 className="mb-1 text-[15px] font-semibold">Demo data</h2>
+      <p className="mb-4 text-muted">{saved ? "Sample contacts, deals, bookings, messages and custom objects are loaded in this account. Removing them deletes only the samples, not anything you added yourself." : "Fill this account with sample contacts, deals, bookings, messages and custom objects so you can show the CRM to prospects. You can remove them again with one click."}</p>
+      {saved ? <Button variant="danger" disabled={busy} onClick={() => setAsk("remove")}>{busy ? "Removing…" : "Remove demo data"}</Button> : <Button disabled={busy} onClick={() => setAsk("load")}>{busy ? "Loading…" : "Load demo data"}</Button>}
+      {ask === "load" && <ConfirmModal title="Load demo data?" text="This adds about 80 sample records to this account, tagged “demo”, next to anything already here. Sample owners Maria and Dan are added to lead assignment." confirmLabel="Load" onClose={() => setAsk(null)} onConfirm={load} />}
+      {ask === "remove" && <ConfirmModal title="Remove demo data?" text="This permanently deletes the sample records that were loaded. Your own records stay." confirmLabel="Remove" onClose={() => setAsk(null)} onConfirm={clear} />}
+    </Card>
   );
 }
 
@@ -133,6 +172,7 @@ export default function SettingsPage() {
         </div>
         {!isDemo && <p className="mt-3 text-sm text-muted">Signed in as {userEmail}</p>}
       </Card>
+      {!isDemo && <DemoDataCard />}
       {reset && <ConfirmModal title="Reset demo data?" text="This restores the sample contacts and removes anything you added." confirmLabel="Reset" onClose={() => setReset(false)} onConfirm={resetDemoData} />}
     </div>
   );
