@@ -9,7 +9,7 @@ import { PublicForm } from "@/components/PublicForm";
 import { useCrm } from "@/lib/store";
 import { useStages } from "@/lib/useStages";
 import { LIBRARY } from "@/lib/emailDesign";
-import { F, FIELD_TYPES, readConfig, type FieldType, type FormConfig, type FormField, type MapTo } from "@/lib/forms";
+import { F, FIELD_TYPES, readConfig, type FieldType, type FormConfig, type FormField, type MapTo, BLOCKS, blockDef, newBlock, type PageBlock } from "@/lib/forms";
 import { timeAgo } from "@/lib/format";
 
 type Tab = "fields" | "page" | "after" | "share" | "subs";
@@ -45,6 +45,45 @@ function FieldCard({ f, i, count, set, move, remove }: { f: FormField; i: number
         </div>
       )}
     </li>
+  );
+}
+
+function BlockEditor({ blocks, onChange }: { blocks: PageBlock[]; onChange: (b: PageBlock[]) => void }) {
+  const [open, setOpen] = useState<string | null>(blocks[0]?.id ?? null);
+  const [adding, setAdding] = useState(false);
+  const setP = (id: string, key: string, v: string) => onChange(blocks.map((b) => (b.id === id ? { ...b, p: { ...b.p, [key]: v } } : b)));
+  const move = (i: number, d: -1 | 1) => { const n = [...blocks]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); onChange(n); };
+  return (
+    <div className="space-y-2">
+      <p className="text-[13px] text-muted">Your page is built from these blocks, top to bottom. If there is no Form block, the form is added at the end.</p>
+      {blocks.map((b, i) => { const def = blockDef(b.type); const on = open === b.id; return (
+        <div key={b.id} className="rounded-lg border border-line bg-white">
+          <div className="flex items-center gap-1 px-2 py-1.5">
+            <button type="button" onClick={() => setOpen(on ? null : b.id)} aria-expanded={on} className="flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-cloud"><Icon name="chevron" className={`size-3.5 shrink-0 text-muted transition ${on ? "rotate-90" : ""}`} /><span className="text-[13.5px] font-semibold text-ink">{def.label}</span><span className="truncate text-[12.5px] text-muted">{b.p.headline || b.p.heading || b.p.quote || ""}</span></button>
+            <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className="grid size-7 place-items-center rounded text-muted hover:bg-cloud disabled:opacity-30" aria-label={`Move ${def.label} up`}><Icon name="chevron" className="size-3.5 -rotate-90" /></button>
+            <button type="button" disabled={i === blocks.length - 1} onClick={() => move(i, 1)} className="grid size-7 place-items-center rounded text-muted hover:bg-cloud disabled:opacity-30" aria-label={`Move ${def.label} down`}><Icon name="chevron" className="size-3.5 rotate-90" /></button>
+            <button type="button" onClick={() => { const c = newBlock(b.type, b.p); const n = [...blocks]; n.splice(i + 1, 0, c); onChange(n); setOpen(c.id); }} className="grid size-7 place-items-center rounded text-muted hover:bg-cloud" aria-label={`Duplicate ${def.label}`}><Icon name="layers" className="size-3.5" /></button>
+            <button type="button" onClick={() => onChange(blocks.filter((x) => x.id !== b.id))} className="grid size-7 place-items-center rounded text-muted hover:bg-rose-t hover:text-rose" aria-label={`Remove ${def.label}`}><Icon name="trash" className="size-3.5" /></button>
+          </div>
+          {on && (
+            <div className="space-y-3 border-t border-line p-3">
+              {def.fields.map((f) => (
+                <Field key={f.key} label={f.label} hint={f.hint}>
+                  {f.kind === "area" ? <textarea className="field !min-h-[84px]" value={b.p[f.key] ?? ""} onChange={(e) => setP(b.id, f.key, e.target.value)} />
+                    : f.kind === "code" ? <textarea className="field !min-h-[180px] font-mono !text-[12.5px]" spellCheck={false} value={b.p[f.key] ?? ""} onChange={(e) => setP(b.id, f.key, e.target.value)} />
+                    : f.kind === "select" ? <select className="field" value={b.p[f.key] ?? ""} onChange={(e) => setP(b.id, f.key, e.target.value)}>{(f.options ?? []).map((o) => <option key={o} value={o}>{o[0].toUpperCase() + o.slice(1)}</option>)}</select>
+                    : f.kind === "image" ? <><input className="field" value={b.p[f.key] ?? ""} onChange={(e) => setP(b.id, f.key, e.target.value)} placeholder="https://… or pick below" /><span className="mt-2 grid grid-cols-6 gap-1.5">{LIBRARY.slice(0, 12).map((l) => <button key={l.src} type="button" onClick={() => setP(b.id, f.key, l.src)} className={`overflow-hidden rounded border ${b.p[f.key] === l.src ? "border-teal ring-2 ring-teal/30" : "border-line"}`} aria-label={`Use picture ${l.src.split("/").pop()}`}><img src={l.src} alt="" className="aspect-[4/3] w-full object-cover" /></button>)}</span></>
+                    : <input className="field" type={f.kind === "number" ? "number" : "text"} value={b.p[f.key] ?? ""} onChange={(e) => setP(b.id, f.key, e.target.value)} />}
+                </Field>
+              ))}
+            </div>
+          )}
+        </div>); })}
+      <div className="relative">
+        <Button type="button" size="sm" variant="soft" icon="plus" aria-expanded={adding} onClick={() => setAdding(!adding)}>Add block</Button>
+        {adding && <div className="absolute left-0 z-20 mt-1 grid w-[min(92vw,420px)] grid-cols-2 gap-1 rounded-lg border border-line bg-white p-1.5 shadow-xl">{BLOCKS.map((d) => <button key={d.type} type="button" onClick={() => { const c = newBlock(d.type); onChange([...blocks, c]); setOpen(c.id); setAdding(false); }} className="rounded-md px-2.5 py-2 text-left hover:bg-cloud"><span className="block text-[13.5px] font-semibold text-ink">{d.label}</span><span className="block text-[12px] text-muted">{d.text}</span></button>)}</div>}
+      </div>
+    </div>
   );
 }
 
@@ -149,7 +188,12 @@ export default function FormEditor() {
               <Card className="space-y-4 !p-4">
                 <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" className="size-4 accent-[#0b8a8a]" checked={cfg.page.enabled} onChange={(e) => set({ page: { ...cfg.page, enabled: e.target.checked } })} />Show as a full landing page</label>
                 <p className="-mt-2 text-[13px] text-muted">Off: just the form. On: a branded page with a headline, picture and benefits, ready for ads.</p>
-                {cfg.page.enabled && (<>
+                {cfg.page.enabled && (
+                  <div className="inline-flex rounded-md border border-[#cdd4e2] p-0.5" role="group" aria-label="Page type">
+                    {([["classic", "Simple layout"], ["custom", "Custom page (blocks)"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={(cfg.page.mode ?? "classic") === k} onClick={() => set({ page: { ...cfg.page, mode: k, blocks: k === "custom" && !(cfg.page.blocks ?? []).length ? [newBlock("hero", { headline: cfg.page.headline || cfg.title || "Your headline goes here", subtext: cfg.page.subtext, image: cfg.page.image }), newBlock("form")] : cfg.page.blocks } })} className={`rounded px-3 py-1 text-[13px] font-semibold ${(cfg.page.mode ?? "classic") === k ? "bg-ink text-white" : "text-body hover:bg-cloud"}`}>{l}</button>)}
+                  </div>
+                )}
+                {cfg.page.enabled && cfg.page.mode !== "custom" && (<>
                   <Field label="Headline"><input className="field" value={cfg.page.headline} onChange={(e) => set({ page: { ...cfg.page, headline: e.target.value } })} /></Field>
                   <Field label="Sub-headline"><textarea className="field !min-h-[70px]" value={cfg.page.subtext} onChange={(e) => set({ page: { ...cfg.page, subtext: e.target.value } })} /></Field>
                   <Field label="Benefits" hint="One per line, shown with ticks."><textarea className="field !min-h-[90px]" value={cfg.page.bullets} onChange={(e) => set({ page: { ...cfg.page, bullets: e.target.value } })} /></Field>
@@ -160,6 +204,7 @@ export default function FormEditor() {
                   </div>
                   <Field label="Layout"><select className="field" value={cfg.page.layout} onChange={(e) => set({ page: { ...cfg.page, layout: e.target.value as "side" | "stacked" } })}><option value="side">Form beside the headline</option><option value="stacked">Form below the headline</option></select></Field>
                 </>)}
+                {cfg.page.enabled && cfg.page.mode === "custom" && <BlockEditor blocks={cfg.page.blocks ?? []} onChange={(blocks) => set({ page: { ...cfg.page, blocks } })} />}
                 <div className="flex items-center justify-between"><span className="text-sm font-semibold">Brand colour</span><input type="color" aria-label="Brand colour" value={cfg.brand} onChange={(e) => set({ brand: e.target.value })} className="h-9 w-14 cursor-pointer rounded-lg border border-line bg-white p-1" /></div>
               </Card>
             )}

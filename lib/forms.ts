@@ -7,7 +7,35 @@ export type FieldType = "text" | "email" | "phone" | "textarea" | "select" | "ch
 /** Where an answer goes on the contact. "custom" keeps it in the contact's custom fields under `key`. */
 export type MapTo = "name" | "email" | "phone" | "company" | "custom" | "none";
 export interface FormField { id: string; type: FieldType; label: string; required: boolean; placeholder?: string; options?: string[]; mapTo: MapTo; key?: string; help?: string }
-export interface FormPage { enabled: boolean; headline: string; subtext: string; image: string; bullets: string; layout: "side" | "stacked" }
+export type BlockType = "hero" | "text" | "image" | "features" | "testimonial" | "faq" | "form" | "cta" | "html" | "spacer";
+/** One section of a custom landing page. All settings are plain strings in `p`. */
+export interface PageBlock { id: string; type: BlockType; p: Record<string, string> }
+export interface FormPage { enabled: boolean; headline: string; subtext: string; image: string; bullets: string; layout: "side" | "stacked"; mode?: "classic" | "custom"; blocks?: PageBlock[] }
+export interface BlockDef { type: BlockType; label: string; text: string; fields: { key: string; label: string; kind: "text" | "area" | "image" | "code" | "number" | "select"; hint?: string; options?: string[] }[]; defaults: Record<string, string> }
+export const BLOCKS: BlockDef[] = [
+  { type: "hero", label: "Hero", text: "Big headline, picture and a button", defaults: { headline: "Your headline goes here", subtext: "One or two sentences on what you offer and who it is for.", button: "Get started", image: "", align: "left" },
+    fields: [{ key: "headline", label: "Headline", kind: "text" }, { key: "subtext", label: "Sub-headline", kind: "area" }, { key: "button", label: "Button text", kind: "text", hint: "Jumps to the form. Leave empty for no button." }, { key: "image", label: "Picture", kind: "image" }, { key: "align", label: "Alignment", kind: "select", options: ["left", "center"] }] },
+  { type: "text", label: "Text", text: "A heading with paragraphs", defaults: { heading: "About us", body: "Write a few sentences here.\n\nLeave an empty line to start a new paragraph." },
+    fields: [{ key: "heading", label: "Heading", kind: "text" }, { key: "body", label: "Text", kind: "area" }] },
+  { type: "image", label: "Image", text: "A full-width picture with a caption", defaults: { src: "", alt: "", caption: "" },
+    fields: [{ key: "src", label: "Picture", kind: "image" }, { key: "alt", label: "Description for screen readers", kind: "text" }, { key: "caption", label: "Caption", kind: "text" }] },
+  { type: "features", label: "Features", text: "Benefits in columns", defaults: { heading: "Why choose us", items: "Fast response | We reply within one business day.\nFair pricing | Clear quotes with no surprises.\nLocal team | People who know your area." },
+    fields: [{ key: "heading", label: "Heading", kind: "text" }, { key: "items", label: "Items", kind: "area", hint: "One per line: Title | Description" }] },
+  { type: "testimonial", label: "Testimonial", text: "A customer quote", defaults: { quote: "They were brilliant from start to finish.", name: "A happy customer" },
+    fields: [{ key: "quote", label: "Quote", kind: "area" }, { key: "name", label: "Who said it", kind: "text" }] },
+  { type: "faq", label: "FAQ", text: "Questions and answers", defaults: { heading: "Common questions", items: "How soon can you start? | Usually within a week.\nDo you offer a free consultation? | Yes, the first one is free." },
+    fields: [{ key: "heading", label: "Heading", kind: "text" }, { key: "items", label: "Questions", kind: "area", hint: "One per line: Question | Answer" }] },
+  { type: "form", label: "Form", text: "The form from the Fields tab", defaults: { heading: "", width: "narrow" },
+    fields: [{ key: "heading", label: "Heading above the form", kind: "text" }, { key: "width", label: "Width", kind: "select", options: ["narrow", "wide"] }] },
+  { type: "cta", label: "Call to action", text: "A coloured band with a button", defaults: { headline: "Ready to get started?", button: "Contact us" },
+    fields: [{ key: "headline", label: "Headline", kind: "text" }, { key: "button", label: "Button text", kind: "text", hint: "Jumps to the form." }] },
+  { type: "html", label: "Custom HTML", text: "Your own HTML and CSS", defaults: { code: "<div style=\"font-family:sans-serif;text-align:center;padding:32px\">\n  <h2>Your custom HTML</h2>\n  <p>Paste any HTML and CSS here.</p>\n</div>", height: "220" },
+    fields: [{ key: "code", label: "HTML", kind: "code", hint: "Runs in a sealed frame. Scripts are switched off for safety; links open in a new tab." }, { key: "height", label: "Height in pixels", kind: "number" }] },
+  { type: "spacer", label: "Spacer", text: "Empty space between sections", defaults: { height: "40" }, fields: [{ key: "height", label: "Height in pixels", kind: "number" }] },
+];
+export const blockDef = (t: BlockType) => BLOCKS.find((b) => b.type === t) ?? BLOCKS[1];
+export const newBlock = (t: BlockType, p: Record<string, string> = {}): PageBlock => ({ id: fid(), type: t, p: { ...blockDef(t).defaults, ...p } });
+export const pairs = (s: string) => s.split("\n").map((l) => l.split("|").map((x) => x.trim())).filter((x) => x[0]);
 export interface FormConfig {
   title: string; intro: string; button: string;
   fields: FormField[];
@@ -41,6 +69,14 @@ export function blankConfig(): FormConfig {
 }
 
 export interface FormStarter { id: string; name: string; text: string; config: () => FormConfig }
+/** Blank starting points. */
+export const CUSTOM_STARTERS: FormStarter[] = [
+  { id: "custom-form", name: "Custom form", text: "Start with one email field and add exactly the fields you want.", config: () => ({ ...blankConfig(), title: "", intro: "", fields: [F("email", "Email", "email", true)] }) },
+  { id: "custom-page", name: "Custom landing page", text: "Build a page from blocks: hero, text, images, features, FAQ, your own HTML and the form.", config: () => ({
+    ...blankConfig(), title: "Get in touch", fields: [F("text", "Full name", "name", true), F("email", "Email", "email", true), F("phone", "Phone", "phone")],
+    page: { ...blankConfig().page, enabled: true, mode: "custom", blocks: [newBlock("hero"), newBlock("features"), newBlock("form", { heading: "Tell us about you" }), newBlock("faq")] },
+  }) },
+];
 export const FORM_STARTERS: FormStarter[] = [
   { id: "contact", name: "Contact us", text: "Name, email, phone and a message.", config: () => ({ ...blankConfig(), tags: ["enquiry"] }) },
   { id: "quote", name: "Free quote landing page", text: "A landing page with a quote request form that creates a deal.", config: () => ({

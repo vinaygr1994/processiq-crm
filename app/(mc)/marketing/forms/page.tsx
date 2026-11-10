@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Button, Card, ConfirmModal, Empty, Modal, PageHeader } from "@/components/ui";
 import { useCrm } from "@/lib/store";
-import { FORM_STARTERS, newSlug, readConfig } from "@/lib/forms";
+import { CUSTOM_STARTERS, FORM_STARTERS, newSlug, readConfig } from "@/lib/forms";
 import { timeAgo } from "@/lib/format";
 import type { FormDef } from "@/lib/types";
 
@@ -17,19 +17,19 @@ export default function FormsPage() {
   const subs = (id: string) => data.form_submissions.filter((s) => s.form_id === id);
 
   async function create(id: string) {
-    const s = FORM_STARTERS.find((x) => x.id === id)!;
+    const s = [...CUSTOM_STARTERS, ...FORM_STARTERS].find((x) => x.id === id)!;
     try {
       const row = await add("forms", { name: s.name, slug: newSlug(s.name), status: "draft", config: s.config() });
       if (row) router.push(`/marketing/forms/${row.id}`);
-    } catch { toast("Forms need a one-time database update: run supabase/migrations/009_forms.sql in Supabase.", "error"); }
+    } catch { toast("Forms need a one-time database update: run supabase/schema.sql in the Supabase SQL Editor.", "error"); }
   }
 
   return (
     <div className="space-y-6">
       <PageHeader title="Forms and landing pages" sub="Collect sign-ups and leads. Every submission becomes a contact, joins your lists and can start a journey."
-        action={<Button icon="plus" onClick={() => setPicker(true)}>New form</Button>} />
+        action={<Button icon="plus" onClick={() => setPicker(true)}>New form or page</Button>} />
       {data.forms.length === 0 ? (
-        <Card><Empty icon="note" title="Create your first form" text="Start from a contact form, a free-quote landing page, a newsletter sign-up, a booking request or an event registration." action={<Button icon="plus" onClick={() => setPicker(true)}>New form</Button>} /></Card>
+        <Card><Empty icon="note" title="Create your first form" text="Start from a contact form, a free-quote landing page, a newsletter sign-up, a booking request or an event registration." action={<Button icon="plus" onClick={() => setPicker(true)}>New form or page</Button>} /></Card>
       ) : (
         <Card className="!p-0 overflow-hidden">
           <ul className="divide-y divide-line">
@@ -40,7 +40,7 @@ export default function FormsPage() {
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-t text-teal-d"><Icon name={cfg.page.enabled ? "home" : "note"} className="size-5" /></span>
                   <div className="min-w-0 flex-1">
                     <Link href={`/marketing/forms/${f.id}`} className="font-semibold text-ink hover:text-teal-d">{f.name}</Link>
-                    <div className="text-[13px] text-muted">{cfg.page.enabled ? "Landing page" : "Form"} · /f/{f.slug}</div>
+                    <div className="text-[13px] text-muted">{cfg.page.enabled ? (cfg.page.mode === "custom" ? "Custom landing page" : "Landing page") : "Form"} · /f/{f.slug}</div>
                   </div>
                   <div className="text-right text-sm"><div className="font-semibold text-ink">{s.length} submission{s.length === 1 ? "" : "s"}</div><div className="text-[13px] text-muted">{last ? `Last ${timeAgo(last)}` : "None yet"}</div></div>
                   <Badge tone={f.status === "published" ? "teal" : "gray"}>{f.status === "published" ? "Live" : "Draft"}</Badge>
@@ -52,11 +52,21 @@ export default function FormsPage() {
         </Card>
       )}
       {picker && (
-        <Modal title="Start a form" onClose={() => setPicker(false)} wide>
+        <Modal title="New form or landing page" onClose={() => setPicker(false)} wide>
+          <h3 className="mb-2 text-[13px] font-semibold text-muted">Build your own</h3>
+          <div className="mb-5 grid gap-3 sm:grid-cols-2">
+            {CUSTOM_STARTERS.map((s) => (
+              <button key={s.id} type="button" onClick={() => create(s.id)} className="flex items-start gap-3 rounded-lg border border-teal bg-teal-t/40 p-4 text-left transition hover:bg-teal-t">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-teal-d text-white"><Icon name={s.id === "custom-page" ? "layers" : "note"} className="size-[18px]" /></span>
+                <span><span className="block font-semibold text-ink">{s.name}</span><span className="mt-0.5 block text-[13px] text-muted">{s.text}</span></span>
+              </button>
+            ))}
+          </div>
+          <h3 className="mb-2 text-[13px] font-semibold text-muted">Or start from a template</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {FORM_STARTERS.map((s) => (
-              <button key={s.id} type="button" onClick={() => create(s.id)} className="rounded-2xl border border-line bg-white p-4 text-left transition hover:border-teal hover:shadow-md">
-                <div className="font-semibold text-ink">{s.name}</div><p className="mt-1 text-sm text-muted">{s.text}</p>
+              <button key={s.id} type="button" onClick={() => create(s.id)} className="rounded-lg border border-line bg-white p-4 text-left transition hover:border-teal hover:bg-cloud">
+                <div className="font-semibold text-ink">{s.name}</div><p className="mt-1 text-[13px] text-muted">{s.text}</p>
               </button>
             ))}
           </div>

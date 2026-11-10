@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useRef, useState } from "react";
-import type { FormConfig } from "@/lib/forms";
+import { pairs, type FormConfig, type PageBlock } from "@/lib/forms";
 
 /** The public form (and optional landing page). Used by /f/[slug] and by the editor's live preview. */
 export function PublicForm({ cfg, business, onSubmit, preview = false, embed = false }: {
@@ -72,6 +72,50 @@ export function PublicForm({ cfg, business, onSubmit, preview = false, embed = f
   );
 
   if (!cfg.page.enabled || embed) return <div ref={top} className={embed ? "p-4" : "mx-auto max-w-md px-5 py-10"}>{form}</div>;
+
+  if (cfg.page.mode === "custom") {
+    const blocks: PageBlock[] = cfg.page.blocks ?? [];
+    const hasForm = blocks.some((b) => b.type === "form");
+    const jump = () => document.getElementById("pf-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const wrap = "mx-auto max-w-5xl px-5 @xl:px-8";
+    const h2 = "text-[26px] font-semibold leading-tight text-[#111a2e] @xl:text-[32px]";
+    const formCard = (b?: PageBlock) => (
+      <section key={b?.id ?? "auto-form"} id="pf-form" className="py-10 @xl:py-14"><div className={`mx-auto px-5 ${b?.p.width === "wide" ? "max-w-2xl" : "max-w-md"}`}>
+        {b?.p.heading && <h2 className={`${h2} mb-5 text-center`}>{b.p.heading}</h2>}
+        <div className="rounded-2xl bg-white p-6 shadow-xl ring-1 ring-black/5 @xl:p-7">{form}</div></div></section>
+    );
+    return (
+      <div ref={top} className="@container min-h-full bg-[#f4f6fb] text-[#33405a]">
+        {business && <div className="bg-white py-3 shadow-sm"><div className={`${wrap} text-[15px] font-semibold text-[#111a2e]`}>{business}</div></div>}
+        {blocks.map((b) => {
+          const p = b.p;
+          switch (b.type) {
+            case "hero": return (
+              <section key={b.id} style={{ background: `linear-gradient(135deg, ${brand}, #111a2e)` }} className="text-white"><div className={`${wrap} py-12 @xl:py-20 ${p.align === "center" ? "text-center" : p.image ? "grid items-center gap-10 @4xl:grid-cols-2" : ""}`}>
+                <div><h1 className="text-[34px] font-semibold leading-[1.08] @xl:text-[48px]" style={{ color: "#fff" }}>{p.headline}</h1>
+                  {p.subtext && <p className={`mt-4 text-[17px] leading-relaxed text-white/85 ${p.align === "center" ? "mx-auto max-w-2xl" : "max-w-xl"}`}>{p.subtext}</p>}
+                  {p.button && <button type="button" onClick={jump} className="mt-7 h-12 rounded-full bg-white px-7 font-semibold transition hover:brightness-95" style={{ color: brand }}>{p.button}</button>}</div>
+                {p.image && <img src={p.image} alt="" className={`w-full rounded-2xl object-cover shadow-2xl ${p.align === "center" ? "mx-auto mt-10 aspect-[21/9] max-w-3xl" : "aspect-[4/3]"}`} />}
+              </div></section>);
+            case "text": return <section key={b.id} className="py-10 @xl:py-14"><div className="mx-auto max-w-3xl px-5">{p.heading && <h2 className={h2}>{p.heading}</h2>}{p.body.split(/\n\s*\n/).map((x, i) => <p key={i} className="mt-4 whitespace-pre-line text-[16.5px] leading-relaxed">{x}</p>)}</div></section>;
+            case "image": return p.src ? <section key={b.id} className="py-6"><figure className={wrap}><img src={p.src} alt={p.alt} className="w-full rounded-2xl object-cover" />{p.caption && <figcaption className="mt-2 text-center text-[14px] text-[#5d6782]">{p.caption}</figcaption>}</figure></section> : null;
+            case "features": { const items = pairs(p.items); return (
+              <section key={b.id} className="bg-white py-10 @xl:py-14"><div className={wrap}>{p.heading && <h2 className={`${h2} text-center`}>{p.heading}</h2>}
+                <div className="mt-8 grid gap-5 @xl:grid-cols-3">{items.map(([t2, d], i) => <div key={i} className="rounded-2xl border border-[#e4e8f0] p-5"><div className="mb-3 grid size-9 place-items-center rounded-full text-white" style={{ background: brand }}>✓</div><h3 className="text-[17px] font-semibold text-[#111a2e]">{t2}</h3>{d && <p className="mt-1 text-[15px]">{d}</p>}</div>)}</div></div></section>); }
+            case "testimonial": return <section key={b.id} className="py-10 @xl:py-14"><figure className="mx-auto max-w-3xl px-5 text-center"><blockquote className="text-[22px] font-medium leading-snug text-[#111a2e] @xl:text-[26px]">“{p.quote}”</blockquote>{p.name && <figcaption className="mt-4 text-[15px] text-[#5d6782]">{p.name}</figcaption>}</figure></section>;
+            case "faq": { const items = pairs(p.items); return (
+              <section key={b.id} className="bg-white py-10 @xl:py-14"><div className="mx-auto max-w-3xl px-5">{p.heading && <h2 className={h2}>{p.heading}</h2>}
+                <div className="mt-5 divide-y divide-[#e4e8f0] border-y border-[#e4e8f0]">{items.map(([q2, a], i) => <details key={i} className="group py-4"><summary className="cursor-pointer list-none text-[16.5px] font-semibold text-[#111a2e]"><span className="mr-2 inline-block transition group-open:rotate-90" style={{ color: brand }}>›</span>{q2}</summary><p className="mt-2 pl-5 text-[15.5px] leading-relaxed">{a}</p></details>)}</div></div></section>); }
+            case "form": return formCard(b);
+            case "cta": return <section key={b.id} style={{ background: brand }} className="py-10 text-center text-white @xl:py-12"><div className={wrap}><h2 className="text-[26px] font-semibold @xl:text-[30px]" style={{ color: "#fff" }}>{p.headline}</h2>{p.button && <button type="button" onClick={jump} className="mt-5 h-12 rounded-full bg-white px-7 font-semibold" style={{ color: brand }}>{p.button}</button>}</div></section>;
+            case "html": return <iframe key={b.id} title="Custom content" sandbox="allow-popups allow-popups-to-escape-sandbox" srcDoc={`<!doctype html><base target="_blank"><style>html,body{margin:0}</style>${p.code}`} className="block w-full border-0" style={{ height: Math.min(4000, Math.max(40, Number(p.height) || 220)) }} />;
+            case "spacer": return <div key={b.id} style={{ height: Math.min(400, Math.max(0, Number(p.height) || 40)) }} />;
+          }
+        })}
+        {!hasForm && formCard()}
+      </div>
+    );
+  }
 
   const bullets = cfg.page.bullets.split("\n").map((b) => b.trim()).filter(Boolean);
   const side = cfg.page.layout === "side";
