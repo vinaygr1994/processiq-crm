@@ -8,7 +8,7 @@ import { supabase } from "./supabase";
 import { can, type Action } from "./perm";
 import type { Role, NewRow, Rows, Settings, TableName, Tables } from "./types";
 
-const EMPTY: Rows = { messages: [], contacts: [], deals: [], visits: [], autolog: [], tasks: [], activities: [], templates: [], campaigns: [], emails: [], settings: [], workflows: [], workflow_runs: [], segments: [], forms: [], form_submissions: [], services: [], bookings: [], plans: [], memberships: [], org_members: [], objects: [], records: [] };
+const EMPTY: Rows = { data_extensions: [], de_rows: [], messages: [], contacts: [], deals: [], visits: [], autolog: [], tasks: [], activities: [], templates: [], campaigns: [], emails: [], settings: [], workflows: [], workflow_runs: [], segments: [], forms: [], form_submissions: [], services: [], bookings: [], plans: [], memberships: [], org_members: [], objects: [], records: [] };
 export interface Toast { id: number; text: string; tone: "ok" | "error" }
 
 interface Ctx {

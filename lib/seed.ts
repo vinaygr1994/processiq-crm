@@ -102,6 +102,18 @@ export function seedRows(): Rows {
         statuses: ["Booked", "Attended", "No-show", "Cancelled"],
         fields: [{ key: "class", label: "Class", type: "select", options: ["Strength", "Mobility", "HIIT", "Yoga"], required: true }, { key: "date", label: "Class date", type: "date", required: true }, { key: "trial", label: "Free trial", type: "checkbox" }] },
     ],
+    data_extensions: [
+      { id: "de1", name: "Appointments", external_key: "appointments", description: "Upcoming and past appointments, one row per visit.", folder: "Operations", sendable: true, link: { field: "Email", to: "email" }, created_at: ago(20 * D),
+        fields: [{ name: "AppointmentId", type: "text", length: 20, primary: true, required: true }, { name: "Email", type: "email", required: true }, { name: "FirstName", type: "text", length: 50 }, { name: "Service", type: "text", length: 80 }, { name: "AppointmentDate", type: "date" }, { name: "Amount", type: "decimal" }, { name: "Confirmed", type: "boolean", default: "false" }] },
+      { id: "de2", name: "Newsletter sign-ups", external_key: "newsletter_signups", description: "People who joined the newsletter from the website.", folder: "Marketing", sendable: true, link: { field: "Email", to: "email" }, created_at: ago(12 * D),
+        fields: [{ name: "Email", type: "email", primary: true, required: true }, { name: "FirstName", type: "text", length: 50 }, { name: "City", type: "text", length: 50 }, { name: "SignupDate", type: "date" }, { name: "Interest", type: "text", length: 50 }] },
+    ],
+    de_rows: [
+      ...([["A-1001", "priya@nair.example", "Priya", "Free consultation", 2, "0", "true"], ["A-1002", "tom@becker.example", "Tom", "Strength class", 1, "25", "true"], ["A-1003", "james@okafor.example", "James", "Personal training", 1, "90", "false"], ["A-1004", "sarah@collins.example", "Sarah", "Discovery consultation", 5, "0", "false"], ["A-0990", "ava@johnson.example", "Ava", "Wellness review", -9, "120", "true"], ["A-0985", "linda@park.example", "Linda", "Strategy session", -14, "250", "true"]] as const)
+        .map(([id, email, first, service, d, amount, ok], i) => ({ id: `dr${i + 1}`, de_id: "de1", data: { AppointmentId: id, Email: email, FirstName: first, Service: service, AppointmentDate: day(d), Amount: amount, Confirmed: ok }, created_at: ago((6 - i) * D) })),
+      ...([["mia@example.com", "Mia", "Toronto", "Fitness"], ["noah@example.com", "Noah", "Vancouver", "Wellness"], ["priya@nair.example", "Priya", "Toronto", "Skincare"], ["leo@example.com", "Leo", "Calgary", "Fitness"], ["zoe@example.com", "Zoe", "Ottawa", "Nutrition"]] as const)
+        .map(([email, first, city, interest], i) => ({ id: `dn${i + 1}`, de_id: "de2", data: { Email: email, FirstName: first, City: city, SignupDate: day(-i * 2 - 1), Interest: interest }, created_at: ago((i * 2 + 1) * D) })),
+    ],
     messages: [
       { id: "mg1", contact_id: "c3", channel: "whatsapp", direction: "out", phone: "+14165550113", body: "Hi Priya, thanks for your interest in Northstar Studio. Would Thursday at 2pm work for your free consultation?", template: "consultation_invite", status: "delivered", error: "", provider_id: "", read: true, created_at: ago(2 * D) },
       { id: "mg2", contact_id: "c3", channel: "whatsapp", direction: "in", phone: "+14165550113", body: "Thursday works. Can we do 2:30 instead?", template: "", status: "received", error: "", provider_id: "", read: true, created_at: ago(2 * D - 20 * 60000) },

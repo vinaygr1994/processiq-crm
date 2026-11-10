@@ -26,9 +26,11 @@ const STUDIOS: Studio[] = [
   { id: "journey", label: "Journey Builder", icon: "route", href: "/journeys", match: (p) => p.startsWith("/journeys") },
   { id: "automation", label: "Automation Studio", icon: "bolt", href: "/automations", match: (p) => p.startsWith("/automations") },
   { id: "content", label: "Content Builder", icon: "layers", href: "/emails?tab=templates", match: (p, t) => p.startsWith("/emails") && t === "templates" },
-  { id: "audience", label: "Audience Builder", icon: "users", match: (p) => p.startsWith("/marketing/lists"), items: [
-    { href: "/marketing/lists", label: "Lists and segments", text: "Static lists and rule-based segments" },
-    { href: "/contacts", label: "All contacts", text: "Opens the contact list in the CRM" },
+  { id: "audience", label: "Contact Builder", icon: "users", match: (p) => p.startsWith("/marketing/lists") || p.startsWith("/audience"), items: [
+    { href: "/audience?tab=contacts", label: "All Contacts", text: "Every contact with channel status and linked data" },
+    { href: "/audience?tab=extensions", label: "Data Extensions", text: "Your own data tables: create, import, filter" },
+    { href: "/audience?tab=designer", label: "Data Designer", text: "How data extensions relate to a contact" },
+    { href: "/marketing/lists", label: "Lists and Segments", text: "Static lists and rule-based segments" },
   ] },
   { id: "web", label: "Web Studio", icon: "note", match: (p) => p.startsWith("/marketing/forms"), items: [
     { href: "/marketing/forms", label: "Forms and landing pages", text: "Capture leads and sign-ups" },

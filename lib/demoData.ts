@@ -4,9 +4,9 @@ import { seedRows } from "./seed";
 import type { Settings, TableName } from "./types";
 
 /** Tables filled by "Load demo data", parents before children. */
-const ORDER: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "services", "plans", "memberships", "bookings", "objects", "records", "messages"];
-const FK: Record<string, TableName> = { contact_id: "contacts", deal_id: "deals", object_id: "objects", service_id: "services", plan_id: "plans", membership_id: "memberships" };
-const REQUIRED: Partial<Record<TableName, string[]>> = { visits: ["deal_id"], records: ["object_id"], memberships: ["contact_id"], activities: ["contact_id"] };
+const ORDER: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "services", "plans", "memberships", "bookings", "objects", "records", "messages", "data_extensions", "de_rows"];
+const FK: Record<string, TableName> = { contact_id: "contacts", deal_id: "deals", object_id: "objects", service_id: "services", plan_id: "plans", membership_id: "memberships", de_id: "data_extensions" };
+const REQUIRED: Partial<Record<TableName, string[]>> = { visits: ["deal_id"], records: ["object_id"], memberships: ["contact_id"], activities: ["contact_id"], de_rows: ["de_id"] };
 const LS = "piq-demo-ids";
 export const DEMO_REPS = ["Maria", "Dan"];
 export type DemoIds = Partial<Record<TableName, string[]>> & { reps_before?: string[] };

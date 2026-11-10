@@ -196,7 +196,16 @@ export interface CrmRecord { id: string; object_id: string; contact_id: string |
 export type Channel = "sms" | "whatsapp";
 export interface Message { id: string; contact_id: string | null; channel: Channel; direction: "in" | "out"; phone: string; body: string; template: string; status: string; error: string; provider_id: string; read: boolean; created_at: string }
 
+export type DeFieldType = "text" | "number" | "decimal" | "date" | "boolean" | "email" | "phone";
+export interface DeField { name: string; type: DeFieldType; length?: number; primary?: boolean; required?: boolean; default?: string }
+/** Links a data extension to contacts: rows whose `field` equals the contact's email, phone or id belong to that contact. */
+export interface DeLink { field: string; to: "email" | "phone" | "id" }
+export interface DataExtension { id: string; name: string; external_key: string; description: string; folder: string; fields: DeField[]; sendable: boolean; link: DeLink | null; created_at: string }
+export interface DeRow { id: string; de_id: string; data: Record<string, string>; created_at: string }
+
 export interface Tables {
+  data_extensions: DataExtension;
+  de_rows: DeRow;
   messages: Message;
   workflows: Workflow;
   workflow_runs: WorkflowRun;
