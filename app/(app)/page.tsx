@@ -11,9 +11,10 @@ import { nowMs } from "@/lib/clock";
 import { dueLabel, money, timeAgo, todayStr } from "@/lib/format";
 import { columnOf, weighted } from "@/lib/pipelines";
 import { useStages } from "@/lib/useStages";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { resolveRange, ymd, type Custom, type RangeId } from "@/lib/dateRange";
 
 const DAY = 86400000;
-const PERIODS = [{ id: 30, label: "Last 30 days" }, { id: 90, label: "Last 90 days" }, { id: 365, label: "Last 12 months" }];
 const compact = (n: number) => (n >= 1000 ? `$${(n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "")}k` : `$${Math.round(n)}`);
 
 function Panel({ title, action, children, className = "" }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
@@ -46,7 +47,8 @@ export default function HomePage() {
   const { data, update, add, toast, me, team } = useCrm();
   const { pipelines } = useStages();
   const [modal, setModal] = useState<"lead" | "import" | null>(null);
-  const [days, setDays] = useState(30);
+  const [rangeId, setRangeId] = useState<RangeId>("30");
+  const [custom, setCustom] = useState<Custom>(() => { const n = nowMs(); return { from: ymd(n - 29 * DAY), to: ymd(n) }; });
   const [quickTask, setQuickTask] = useState("");
   const [ai, setAi] = useState<{ items: string[]; live: boolean } | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
@@ -55,13 +57,13 @@ export default function HomePage() {
 
   const v = useMemo(() => {
     const now = nowMs();
-    const from = now - days * DAY, prev = from - days * DAY;
+    const { from, to, prevFrom: prev } = resolveRange(rangeId, custom, now);
     const t = (iso: string) => new Date(iso).getTime();
     const kind = (d: (typeof data.deals)[number]) => columnOf(d, pipelines).kind;
     const open = data.deals.filter((d) => kind(d) === "open");
     const won = data.deals.filter((d) => kind(d) === "won");
     const lost = data.deals.filter((d) => kind(d) === "lost");
-    const inP = <T,>(xs: T[], at: (x: T) => number) => xs.filter((x) => at(x) >= from);
+    const inP = <T,>(xs: T[], at: (x: T) => number) => xs.filter((x) => at(x) >= from && at(x) < to);
     const inPrev = <T,>(xs: T[], at: (x: T) => number) => xs.filter((x) => at(x) >= prev && at(x) < from);
     const sum = (xs: { value: number }[]) => xs.reduce((a, d) => a + (d.value || 0), 0);
     const wonNow = inP(won, (d) => t(d.stage_at)), wonPrev = inPrev(won, (d) => t(d.stage_at));
@@ -113,11 +115,11 @@ export default function HomePage() {
       winRate: closed ? Math.round((wonNow.length / closed) * 100) : null, closed,
       months, funnel, sources, owners, tasks, overdue, attention, upcoming, feed, mainName: main.name,
     };
-  }, [data, pipelines, days, today, team, contactById]);
+  }, [data, pipelines, rangeId, custom, today, team, contactById]);
 
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const period = PERIODS.find((p) => p.id === days)!.label.toLowerCase();
+  const period = resolveRange(rangeId, custom, nowMs()).label;
 
   async function addQuick(e: React.FormEvent) {
     e.preventDefault();
@@ -161,7 +163,7 @@ export default function HomePage() {
           <p className="mt-0.5 text-[13.5px] text-muted">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} · {v.overdue.length ? `${v.overdue.length} overdue task${v.overdue.length === 1 ? "" : "s"}` : "No overdue tasks"}</p>
         </div>
         <div className="flex items-center gap-2">
-          <select className="field !h-9 !w-auto !py-0" aria-label="Period" value={days} onChange={(e) => setDays(Number(e.target.value))}>{PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
+          <DateRangePicker id={rangeId} custom={custom} onId={setRangeId} onCustom={setCustom} />
           <AiButton onClick={suggest} busy={aiBusy}>Suggest priorities</AiButton>
         </div>
       </div>
