@@ -13,3 +13,12 @@ export function nextTimeOfDay(ms: number, time: string, tz: string) {
   if (cand <= ms) cand += 86400000;
   return cand;
 }
+/** "YYYY-MM-DDTHH:mm" on the clock in the given time zone → UTC milliseconds. */
+export function zonedToUtc(local: string, tz: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(local);
+  if (!m) return NaN;
+  const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  let off = 0;
+  try { off = offset(guess, tz); off = offset(guess - off, tz); } catch { off = 0; }
+  return guess - off;
+}

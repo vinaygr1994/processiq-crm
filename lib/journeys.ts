@@ -5,34 +5,48 @@ import { PRESETS, bid, stringifyDesign, type Design } from "./emailDesign";
 
 export const isJourney = (w: Pick<Workflow, "template_id">) => w.template_id?.startsWith("journey");
 
-/* ---------- Activities ---------- */
-export type Group = "Messages" | "Timing" | "Flow control" | "Actions";
+/* ---------- Activities (grouped like a classic journey builder palette) ---------- */
+export type Group = "Messages" | "Flow Control" | "Customer Updates" | "CRM Actions";
+export const GROUPS: Group[] = ["Messages", "Flow Control", "Customer Updates", "CRM Actions"];
 export interface Activity { key: string; label: string; group: Group; icon: string; hint: string; make: () => Step }
 const path = (label: string, extra: Partial<Path> = {}): Path => ({ id: uid(), label, steps: [], ...extra });
+const tomorrow9 = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10) + "T09:00";
 
 export const ACTIVITIES: Activity[] = [
   { key: "email", label: "Email", group: "Messages", icon: "mail", hint: "Send a designed or plain email", make: () => ({ id: uid(), type: "email", subject: "", body: "Hi {{first_name}},\n\n", marketing: true }) },
-  { key: "sms", label: "Text message", group: "Messages", icon: "phone", hint: "Send an SMS", make: () => ({ id: uid(), type: "sms", body: "Hi {{first}}, " }) },
-  { key: "wait", label: "Wait", group: "Timing", icon: "clock", hint: "Pause for minutes, hours or days", make: () => ({ id: uid(), type: "wait", mode: "delay", amount: 2, unit: "days" }) },
-  { key: "waittime", label: "Wait until time", group: "Timing", icon: "clock", hint: "Continue at a time of day", make: () => ({ id: uid(), type: "wait", mode: "time", time: "09:00" }) },
-  { key: "split", label: "Decision split", group: "Flow control", icon: "chevron", hint: "Different paths by who they are", make: () => ({ id: uid(), type: "split", paths: [path("Path 1", { cond: { field: "contact.tags", op: "is", value: "vip" } }), path("Everyone else", { cond: null })] }) },
-  { key: "ab", label: "Random split (A/B)", group: "Flow control", icon: "sparkle", hint: "Test two versions", make: () => ({ id: uid(), type: "ab", paths: [path("Version A", { pct: 50 }), path("Version B", { pct: 50 })] }) },
-  { key: "engage", label: "Engagement split", group: "Flow control", icon: "send", hint: "Opened or clicked an email?", make: () => ({ id: uid(), type: "engage", ref: "", event: "open", paths: [path("Yes"), path("No")] }) },
-  { key: "tag", label: "Add a tag", group: "Actions", icon: "tag", hint: "Label the contact", make: () => ({ id: uid(), type: "tag", tag: "" }) },
-  { key: "untag", label: "Remove a tag", group: "Actions", icon: "tag", hint: "Remove a label", make: () => ({ id: uid(), type: "tag", tag: "", remove: true }) },
-  { key: "task", label: "Create a task", group: "Actions", icon: "check", hint: "A to-do for your team", make: () => ({ id: uid(), type: "task", title: "Call {{name}}", days: 0 }) },
-  { key: "stage", label: "Move job stage", group: "Actions", icon: "pipeline", hint: "Update the pipeline", make: () => ({ id: uid(), type: "stage", stage: "contacted" }) },
-  { key: "assign", label: "Assign a rep", group: "Actions", icon: "users", hint: "Round robin", make: () => ({ id: uid(), type: "assign" }) },
-  { key: "notify", label: "Alert me", group: "Actions", icon: "alert", hint: "Log and email you", make: () => ({ id: uid(), type: "notify", message: "" }) },
-  { key: "log", label: "Add a note", group: "Actions", icon: "note", hint: "Shows in Activity", make: () => ({ id: uid(), type: "log", message: "" }) },
+  { key: "sms", label: "SMS", group: "Messages", icon: "chat", hint: "Send a text message", make: () => ({ id: uid(), type: "sms", body: "Hi {{first}}, " }) },
+  { key: "whatsapp", label: "WhatsApp", group: "Messages", icon: "whatsapp", hint: "Send a WhatsApp message or template", make: () => ({ id: uid(), type: "whatsapp", body: "Hi {{first}}, ", lang: "en", params: [] }) },
+  { key: "wait", label: "Wait by Duration", group: "Flow Control", icon: "clock", hint: "Pause for minutes, hours or days", make: () => ({ id: uid(), type: "wait", mode: "delay", amount: 2, unit: "days" }) },
+  { key: "waitdate", label: "Wait Until Date", group: "Flow Control", icon: "calendarclock", hint: "Hold everyone until a date and time", make: () => ({ id: uid(), type: "wait", mode: "date", date: tomorrow9() }) },
+  { key: "waittime", label: "Wait Until Time", group: "Flow Control", icon: "clock", hint: "Continue at a time of day", make: () => ({ id: uid(), type: "wait", mode: "time", time: "09:00" }) },
+  { key: "split", label: "Decision Split", group: "Flow Control", icon: "split", hint: "Different paths by who they are", make: () => ({ id: uid(), type: "split", paths: [path("Path 1", { cond: { field: "contact.tags", op: "is", value: "vip" } }), path("Remainder", { cond: null })] }) },
+  { key: "ab", label: "Random Split", group: "Flow Control", icon: "shuffle", hint: "Split by percentage (A/B test)", make: () => ({ id: uid(), type: "ab", paths: [path("Path 1", { pct: 50 }), path("Path 2", { pct: 50 })] }) },
+  { key: "engage", label: "Engagement Split", group: "Flow Control", icon: "send", hint: "Opened or clicked an email?", make: () => ({ id: uid(), type: "engage", ref: "", event: "open", paths: [path("Yes"), path("No")] }) },
+  { key: "join", label: "Join", group: "Flow Control", icon: "merge", hint: "Send people on to another activity", make: () => ({ id: uid(), type: "join", target: "" }) },
+  { key: "update", label: "Update Contact", group: "Customer Updates", icon: "useredit", hint: "Set a field on the contact", make: () => ({ id: uid(), type: "update", field: "company", value: "" }) },
+  { key: "tag", label: "Add Tag", group: "Customer Updates", icon: "tag", hint: "Label the contact", make: () => ({ id: uid(), type: "tag", tag: "" }) },
+  { key: "untag", label: "Remove Tag", group: "Customer Updates", icon: "tag", hint: "Remove a label", make: () => ({ id: uid(), type: "tag", tag: "", remove: true }) },
+  { key: "task", label: "Create Task", group: "CRM Actions", icon: "check", hint: "A to-do for your team", make: () => ({ id: uid(), type: "task", title: "Call {{name}}", days: 0 }) },
+  { key: "stage", label: "Update Deal Stage", group: "CRM Actions", icon: "pipeline", hint: "Move the deal in the pipeline", make: () => ({ id: uid(), type: "stage", stage: "contacted" }) },
+  { key: "assign", label: "Assign Owner", group: "CRM Actions", icon: "users", hint: "Round robin to your reps", make: () => ({ id: uid(), type: "assign" }) },
+  { key: "notify", label: "Send Alert", group: "CRM Actions", icon: "alert", hint: "Log and email you", make: () => ({ id: uid(), type: "notify", message: "" }) },
+  { key: "log", label: "Add Note", group: "CRM Actions", icon: "note", hint: "Shows in Activity", make: () => ({ id: uid(), type: "log", message: "" }) },
 ];
 export const activityOf = (s: Step): Activity => {
-  const k = s.type === "wait" ? (s.mode === "delay" ? "wait" : "waittime") : s.type === "tag" ? (s.remove ? "untag" : "tag") : s.type === "if" ? "split" : s.type;
-  return ACTIVITIES.find((a) => a.key === k) ?? { key: s.type, label: s.type, group: "Actions", icon: "bolt", hint: "", make: () => s };
+  const k = s.type === "wait" ? (s.mode === "delay" ? "wait" : s.mode === "date" ? "waitdate" : "waittime") : s.type === "tag" ? (s.remove ? "untag" : "tag") : s.type === "if" ? "split" : s.type;
+  return ACTIVITIES.find((a) => a.key === k) ?? { key: s.type, label: s.type, group: "CRM Actions", icon: "bolt", hint: "", make: () => s };
 };
+/** Soft tile colours (palette) and solid node colours (canvas) per group. */
 export const GROUP_TONE: Record<Group, string> = {
-  Messages: "bg-teal-t text-teal-d", Timing: "bg-sun-t text-[#9a5a00]", "Flow control": "bg-iris-t text-iris", Actions: "bg-cloud text-body",
+  Messages: "bg-teal-t text-teal-d", "Flow Control": "bg-iris-t text-iris", "Customer Updates": "bg-sun-t text-[#9a5a00]", "CRM Actions": "bg-[#e6effb] text-[#2f6fb8]",
 };
+export const GROUP_SOLID: Record<Group, string> = {
+  Messages: "#0b8a8a", "Flow Control": "#6b5bd6", "Customer Updates": "#d98a1c", "CRM Actions": "#2f7fd0",
+};
+export const CONTACT_FIELDS: { id: import("./engine/types").ContactField; label: string; bool?: boolean }[] = [
+  { id: "company", label: "Company" }, { id: "source", label: "Lead source" }, { id: "owner", label: "Owner (rep)" },
+  { id: "unsubscribed", label: "Email opt-out (unsubscribed)", bool: true }, { id: "sms_opt_out", label: "SMS / WhatsApp opt-out", bool: true },
+];
 
 /* ---------- Entry sources ---------- */
 export const ENTRY: { id: Trigger["type"]; label: string; group: string; hint: string }[] = [
@@ -95,13 +109,23 @@ export function reIdAll(steps: Step[]): Step[] {
   const fix = (l: Step[]): Step[] => l.map((s): Step => {
     const br = branches(s);
     const withKids = br ? br.reduce<Step>((acc, b, k) => setBranch(acc, k, fix(b)), s) : s;
-    return withKids.type === "engage" ? { ...withKids, ref: map.get(withKids.ref) ?? withKids.ref } : withKids;
+    return withKids.type === "engage" ? { ...withKids, ref: map.get(withKids.ref) ?? withKids.ref } : withKids.type === "join" ? { ...withKids, target: map.get(withKids.target) ?? withKids.target } : withKids;
   });
   return fix(out);
 }
 
 /* ---------- Stats ---------- */
 export interface JourneyStats { entered: number; active: number; done: number; goal: number; stopped: number }
+/** Where a step sits, as the engine's position path. */
+export function posOfStep(steps: Step[], id: string, prefix: number[] = []): number[] | null {
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i], here = [...prefix, i];
+    if (s.id === id) return here;
+    const br = branches(s);
+    if (br) for (let k = 0; k < br.length; k++) { const f = posOfStep(br[k], id, [...here, k]); if (f) return f; }
+  }
+  return null;
+}
 export function journeyStats(runs: WorkflowRun[]): JourneyStats {
   return {
     entered: runs.length,

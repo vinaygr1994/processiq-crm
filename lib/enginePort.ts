@@ -12,7 +12,7 @@ export function serverPort(sb: SupabaseClient, baseUrl: string, ownerId?: string
       return r.ok ? { status: "sent" } : { status: o.contactId || r.code !== 400 ? "failed" : "skipped", error: r.error };
     },
     async sms(o) {
-      const r = await sendMessage({ sb, ownerId, channel: "sms", to: o.to, body: o.body, contactId: o.contactId });
+      const r = await sendMessage({ sb, ownerId, channel: o.channel ?? "sms", to: o.to, body: o.body, contactId: o.contactId, template: o.template });
       return r.ok ? { status: "sent" } : { status: r.skipped ? "skipped" : "failed", error: r.error };
     },
   };

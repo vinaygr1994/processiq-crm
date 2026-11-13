@@ -1,6 +1,6 @@
 import type { AutoLog, Contact, Deal, Settings, Tables, Task, Visit, Workflow, WorkflowRun } from "../types";
 import { mergeVars, render } from "./merge";
-import { nextTimeOfDay } from "./tz";
+import { nextTimeOfDay, zonedToUtc } from "./tz";
 import type { Cond, Step } from "./types";
 import { branches, uid } from "./types";
 import { isDesign, parseDesign, plainOf, emailVars, type Design } from "../emailDesign";
@@ -21,7 +21,7 @@ export type SendResult = "sent" | "demo" | "failed" | "skipped";
 export interface Port {
   now(): number;
   email(o: { to: string; subject: string; body: string; contactId?: string; marketing?: boolean; design?: Design; vars?: Record<string, string>; trackId?: string }): Promise<{ status: SendResult; error?: string }>;
-  sms(o: { to: string; body: string; contactId?: string }): Promise<{ status: SendResult; error?: string }>;
+  sms(o: { to: string; body: string; contactId?: string; channel?: "sms" | "whatsapp"; template?: { name: string; lang: string; params: string[] } }): Promise<{ status: SendResult; error?: string }>;
 }
 
 const MIN = 60000, HOUR = 3600000, DAY = 86400000;
@@ -59,6 +59,17 @@ export function advance(steps: Step[], pos: number[], by = 1): number[] {
     p[p.length - 1] += 1;
   }
   return p;
+}
+
+/** Position of a step by id, for Join. */
+export function posOf(steps: Step[], id: string, prefix: number[] = []): number[] | null {
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i], here = [...prefix, i];
+    if (s.id === id) return here;
+    const br = branches(s);
+    if (br) for (let k = 0; k < br.length; k++) { const f = posOf(br[k], id, [...here, k]); if (f) return f; }
+  }
+  return null;
 }
 
 /* ---------- Conditions ---------- */
@@ -110,6 +121,9 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
   const have = new Set(runs.map((r) => `${r.workflow_id}|${r.trigger_key}`));
   async function enrol(w: Workflow, key: string, deal: Deal | null, visit: Visit | null, contact: Contact | null = null) {
     if (have.has(`${w.id}|${key}`)) return;
+    const cid = contact?.id ?? deal?.contact_id ?? visit?.contact_id ?? null;
+    const mode = w.trigger.reentry ?? "event";
+    if (cid && mode !== "event" && runs.some((r) => r.workflow_id === w.id && r.contact_id === cid && (mode === "once" || r.status === "active"))) return;
     have.add(`${w.id}|${key}`);
     if (deal && !visit) {
       // A newer run for the same job replaces an older one (e.g. a re-sent quote).
@@ -167,7 +181,8 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     for (let guard = 0; guard < 60; guard++) {
       const deal = byDeal(run.deal_id) as Deal | undefined, contact = byContact(deal?.contact_id ?? run.contact_id) as Contact | undefined, visit = byVisit(run.visit_id) as Visit | undefined;
       if (run.deal_id && !deal) { status = "stopped"; note = "The job was deleted"; break; }
-      if (wf.exit.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = "Reached the goal"; break; }
+      if (wf.trigger.goal?.length && wf.trigger.goal.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = "Reached the goal"; break; }
+      if (wf.exit.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = wf.trigger.goal ? "Met exit criteria" : "Reached the goal"; break; }
       const step = stepAt(wf.steps, pos);
       if (!step) { status = "done"; break; }
       const vars = mergeVars(deal, contact, visit, settings);
@@ -180,6 +195,10 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
           if (dueAt <= port.now()) { baseMs = dueAt; pos = next; continue; }
         }
         else if (step.mode === "time") dueAt = nextTimeOfDay(port.now(), step.time, settings?.timezone || "UTC");
+        else if (step.mode === "date") {
+          dueAt = step.date ? zonedToUtc(step.date, settings?.timezone || "UTC") : NaN;
+          if (Number.isNaN(dueAt) || dueAt <= port.now()) { pos = next; continue; }
+        }
         else {
           const base = step.ref === "visit_start" ? (visit ? new Date(visit.starts_at).getTime() : NaN) : (deal?.quote_sent_at ? new Date(deal.quote_sent_at).getTime() : NaN);
           if (Number.isNaN(base)) { pos = next; continue; }
@@ -191,6 +210,11 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
           }
         }
         pos = next; nextAt = dueAt; break;
+      }
+      if (step.type === "join") {
+        const to = posOf(wf.steps, step.target);
+        if (!to || to.join(".") === pos.join(".")) { pos = next; continue; }
+        pos = to; continue;
       }
       if (step.type === "if" || step.type === "split" || step.type === "ab" || step.type === "engage") {
         let k = 0;
@@ -230,6 +254,20 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
             const r = await port.sms({ to: contact.phone, body, contactId: contact.id });
             await log(deal ?? null, "Auto", r.status === "skipped" ? "Text skipped: SMS isn't connected yet (Mobile Studio → Setup)" : r.status === "failed" ? `Text failed: ${r.error ?? "unknown error"}` : `Text sent to ${contact.name}`, r.status === "sent" || r.status === "demo" ? "info" : "warn");
           }
+        } else if (step.type === "whatsapp") {
+          const body = render(step.body, vars);
+          if (!contact?.phone) await log(deal ?? null, "Auto", "WhatsApp skipped: no phone number on file", "warn");
+          else if (contact.sms_opt_out) await log(deal ?? null, "Auto", `WhatsApp skipped: ${contact.name} opted out`, "warn");
+          else {
+            const template = step.template ? { name: step.template, lang: step.lang || "en", params: (step.params ?? []).map((x) => render(x, vars)) } : undefined;
+            const r = await port.sms({ to: contact.phone, body, contactId: contact.id, channel: "whatsapp", template });
+            await log(deal ?? null, "Auto", r.status === "skipped" ? "WhatsApp skipped: WhatsApp isn't connected yet (Mobile Studio → Setup)" : r.status === "failed" ? `WhatsApp failed: ${r.error ?? "unknown error"}` : `WhatsApp sent to ${contact.name}`, r.status === "sent" || r.status === "demo" ? "info" : "warn");
+          }
+        } else if (step.type === "update" && contact) {
+          const v: string | boolean = step.field === "unsubscribed" || step.field === "sms_opt_out" ? step.value === "true" : render(step.value, vars);
+          await db.update("contacts", contact.id, { [step.field]: v } as Partial<Contact>);
+          (contact as unknown as Record<string, unknown>)[step.field] = v;
+          await log(deal ?? null, "Auto", `Contact updated: ${step.field.replace("_", " ")} → ${String(v)}`);
         } else if (step.type === "task") {
           const title = render(step.title, vars);
           await db.insert("tasks", { title, due_date: dateStr(port.now() + step.days * DAY), done: false, contact_id: contact?.id ?? null, deal_id: deal?.id ?? null, created_at: iso(port.now()) } as unknown as Omit<Task, "id" | "created_at">);
