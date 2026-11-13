@@ -16,6 +16,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const signup = mode === "signup";
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reason") === "idle") queueMicrotask(() => setInfo("You were logged out after an hour with no activity. Log in again to continue."));
     if (isDemo) router.replace("/");
     else supabase().auth.getSession().then(({ data }) => data.session && router.replace("/"));
   }, [router]);
@@ -36,13 +37,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       setBusy(false);
       if (error) return setErr(error.message === "Invalid login credentials" ? "That email or password isn't right." : error.message);
+      try { localStorage.removeItem("piq-last-active"); } catch {}
       router.replace("/");
     }
   }
   async function reset() {
     setErr(""); setInfo("");
     if (!email) return setErr("Type your email above first, then click “Forgot password?”.");
-    const { error } = await supabase().auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    const { error } = await supabase().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
     if (error) setErr(error.message); else setInfo("If that email has an account, a reset link is on its way.");
   }
 

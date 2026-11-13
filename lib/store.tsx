@@ -8,6 +8,23 @@ import { supabase } from "./supabase";
 import { can, type Action } from "./perm";
 import type { Role, NewRow, Rows, Settings, TableName, Tables } from "./types";
 
+/** Log out after this long with no clicks, typing or scrolling in any CRM tab. */
+const IDLE_LIMIT_MS = 60 * 60 * 1000;
+const ACTIVE_KEY = "piq-last-active";
+let lastWrite = 0;
+function markActive() {
+  const now = Date.now();
+  if (now - lastWrite < 15_000) return; // throttle storage writes
+  lastWrite = now;
+  try { localStorage.setItem(ACTIVE_KEY, String(now)); } catch {}
+}
+function idleTooLong() {
+  try {
+    const v = Number(localStorage.getItem(ACTIVE_KEY));
+    return v > 0 && Date.now() - v > IDLE_LIMIT_MS;
+  } catch { return false; }
+}
+
 const EMPTY: Rows = { data_extensions: [], de_rows: [], messages: [], contacts: [], deals: [], visits: [], autolog: [], tasks: [], activities: [], templates: [], campaigns: [], emails: [], settings: [], workflows: [], workflow_runs: [], segments: [], forms: [], form_submissions: [], services: [], bookings: [], plans: [], memberships: [], org_members: [], objects: [], records: [] };
 export interface Toast { id: number; text: string; tone: "ok" | "error" }
 
@@ -69,19 +86,46 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       return;
     }
     const sb = supabase();
-    sb.auth.getSession().then(({ data: { session } }) => {
+    // A reset link that lands on the app root still has to go through "choose a new password".
+    if (/type=recovery/.test(window.location.hash)) { router.replace("/reset-password" + window.location.hash); return; }
+    const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") { router.replace("/reset-password"); return; }
+      if (!session) router.replace("/login");
+    });
+    sb.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         router.replace("/login");
         return;
       }
+      if (idleTooLong()) {
+        try { localStorage.removeItem(ACTIVE_KEY); } catch {}
+        await sb.auth.signOut();
+        router.replace("/login?reason=idle");
+        return;
+      }
+      markActive();
       setUserEmail(session.user.email ?? "");
       load();
     });
-    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      if (!session) router.replace("/login");
-    });
     return () => sub.subscription.unsubscribe();
   }, [load, router]);
+
+  // Sign out automatically after a period with no activity (shared across tabs).
+  useEffect(() => {
+    if (isDemo) return;
+    const bump = () => markActive();
+    const events = ["pointerdown", "keydown", "scroll", "visibilitychange"] as const;
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+    const check = async () => {
+      if (!idleTooLong()) return;
+      try { localStorage.removeItem(ACTIVE_KEY); } catch {}
+      await supabase().auth.signOut();
+      router.replace("/login?reason=idle");
+    };
+    const iv = window.setInterval(check, 60_000);
+    window.addEventListener("focus", check);
+    return () => { events.forEach((ev) => window.removeEventListener(ev, bump)); window.clearInterval(iv); window.removeEventListener("focus", check); };
+  }, [router]);
 
   const add: Ctx["add"] = useCallback(async (t, row) => {
     try {
@@ -146,6 +190,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (isDemo) return;
+    try { localStorage.removeItem(ACTIVE_KEY); } catch {}
     await supabase().auth.signOut();
     router.replace("/login");
   }, [router]);

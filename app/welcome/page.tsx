@@ -32,6 +32,7 @@ export default function Welcome() {
     const { error } = await sb.auth.updateUser({ password: pw });
     if (error) { setErr(error.message); setBusy(false); return; }
     await sb.rpc("crm_accept").then(() => {}, () => {});
+    try { localStorage.removeItem("piq-last-active"); } catch {}
     router.replace("/");
   }
 
