@@ -82,11 +82,16 @@ export interface Activity {
   body: string;
   created_at: string;
 }
+export type AssetKind = "email" | "template" | "block" | "image" | "folder";
+/** A Content Builder asset. body: email/template/block = design or text; image = public URL; folder = unused. Migration 017 adds kind, folder, updated_at. */
 export interface Template {
   id: string;
   name: string;
   subject: string;
   body: string;
+  kind?: AssetKind;
+  folder?: string;
+  updated_at?: string;
   created_at: string;
 }
 export interface Campaign {

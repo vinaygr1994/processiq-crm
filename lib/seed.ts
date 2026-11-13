@@ -1,5 +1,19 @@
 import type { Rows } from "./types";
 import { STARTERS } from "./engine/starters";
+import { PRESETS, newBlock, scratchDesign, stringifyDesign } from "./emailDesign";
+
+/** Demo Content Builder assets: a folder, a designed email, a template and a reusable footer block. */
+function demoContent(ago: (ms: number) => string, D: number) {
+  const p = (id: string) => PRESETS.find((x) => x.id === id) ?? PRESETS[0];
+  const social = newBlock("social"), divider = newBlock("divider"), sign = newBlock("text");
+  sign.text = "Talk soon,\n{{business}} team";
+  return [
+    { id: "tf1", name: "Newsletters", subject: "", body: "", kind: "folder" as const, folder: "", updated_at: ago(9 * D), created_at: ago(9 * D) },
+    { id: "tp2", name: "November newsletter", subject: p("newsletter").subject, body: stringifyDesign(p("newsletter").design), kind: "email" as const, folder: "Newsletters", updated_at: ago(2 * D), created_at: ago(6 * D) },
+    { id: "tp3", name: "Promotion layout", subject: p("promo").subject, body: stringifyDesign(p("promo").design), kind: "template" as const, folder: "", updated_at: ago(4 * D), created_at: ago(8 * D) },
+    { id: "tp4", name: "Sign-off with socials", subject: "", body: stringifyDesign({ ...scratchDesign(), blocks: [divider, sign, social] }), kind: "block" as const, folder: "", updated_at: ago(3 * D), created_at: ago(7 * D) },
+  ];
+}
 
 const M = 60000, H = 3600000, D = 86400000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -69,6 +83,7 @@ export function seedRows(): Rows {
     ],
     templates: [
       { id: "tp1", name: "Quick follow-up", subject: "Following up, {{first_name}}", body: "Hi {{first_name}},\n\nJust checking in to see if you had any questions about your project. Happy to jump on a quick call whenever suits you.\n\nBest,", created_at: ago(10 * D) },
+      ...demoContent(ago, D),
     ],
     campaigns: [],
     emails: [],

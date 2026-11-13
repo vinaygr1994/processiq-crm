@@ -7,6 +7,7 @@ import { useStatus } from "@/lib/status";
 import { callApi } from "@/lib/api";
 import { aiDraftEmail } from "@/lib/ai";
 import { fill } from "@/lib/format";
+import { blocksOf, isMessage, kindOf, uploadImage } from "@/lib/content";
 import {
   BLOCK_LABELS, LIBRARY, MERGE_FIELDS, PALETTE, PRESETS, bid, blankDesign, scratchDesign, emailVars, isDesign, newBlock, paletteItem, parseDesign, plainOf, renderDesign, stringifyDesign,
   type Block, type Cell, type ColLayout, type Design, type Preset, type Social,
@@ -83,6 +84,22 @@ function TextIn({ label, value, onChange, area, hint, ph, code }: { label: strin
 
 function ImageIn({ label, value, alt, onChange }: { label: string; value?: string; alt?: string; onChange: (src: string, alt?: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { data, add, toast } = useCrm();
+  const mine = data.templates.filter((t) => kindOf(t) === "image");
+  const file = useRef<HTMLInputElement>(null);
+  async function upload(f?: File) {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const url = await uploadImage(f);
+      const name = f.name.replace(/\.[a-z0-9]+$/i, "");
+      await add("templates", { name, subject: "", body: url, kind: "image", folder: "Images", updated_at: new Date().toISOString() });
+      onChange(url, name);
+    } catch (e) { toast((e as Error).message, "error"); }
+    setBusy(false);
+    if (file.current) file.current.value = "";
+  }
   return (
     <div>
       <span className="mb-1.5 block text-sm font-semibold text-ink">{label}</span>
@@ -90,10 +107,14 @@ function ImageIn({ label, value, alt, onChange }: { label: string; value?: strin
         {value && <img src={value} alt={alt ?? ""} className="size-11 shrink-0 rounded-lg border border-line object-cover" />}
         <input className="field" value={value ?? ""} placeholder="https://… or pick from the library" onChange={(e) => onChange(e.target.value)} aria-label={`${label} web address`} />
       </div>
-      <button type="button" onClick={() => setOpen(!open)} className="mt-1.5 text-[13px] font-semibold text-teal-d hover:underline">{open ? "Hide image library" : "Choose from image library"}</button>
+      <div className="mt-1.5 flex gap-4">
+        <button type="button" onClick={() => setOpen(!open)} className="text-[13px] font-semibold text-teal-d hover:underline">{open ? "Hide image library" : "Choose from image library"}</button>
+        <input ref={file} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
+        <button type="button" disabled={busy} onClick={() => file.current?.click()} className="text-[13px] font-semibold text-teal-d hover:underline disabled:opacity-50">{busy ? "Uploading…" : "Upload an image"}</button>
+      </div>
       {open && (
         <div className="mt-2 grid grid-cols-4 gap-1.5">
-          {LIBRARY.map((l) => (
+          {[...mine.map((t) => ({ src: t.body, alt: t.name })), ...LIBRARY].map((l) => (
             <button key={l.src} type="button" onClick={() => { onChange(l.src, l.alt); setOpen(false); }} className={`overflow-hidden rounded-lg border-2 ${value === l.src ? "border-teal" : "border-transparent hover:border-line"}`} title={l.alt}>
               <img src={l.src} alt={l.alt} className="aspect-square w-full object-cover" />
             </button>
@@ -230,10 +251,14 @@ interface Props {
   aiRecent?: string[];
   goals?: string[];
   aiPlaceholder?: string;
+  /** "block" edits a reusable content block: no subject, no plain-text mode. */
+  mode?: "message" | "block";
+  /** Taller canvas for the full-screen editor. */
+  tall?: boolean;
 }
 type Side = "add" | "edit" | "style";
 
-export function EmailEditor({ subject, body, onSubject, onBody, contact, aiContact, aiRecent = [], goals = [], aiPlaceholder = "What's this email about?" }: Props) {
+export function EmailEditor({ subject, body, onSubject, onBody, contact, aiContact, aiRecent = [], goals = [], aiPlaceholder = "What's this email about?", mode = "message", tall = false }: Props) {
   const { data, settings, userEmail, toast } = useCrm();
   const status = useStatus();
   const design = useMemo(() => parseDesign(body), [body]);
@@ -277,8 +302,16 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
     const pos = at ?? (selected ? design.blocks.findIndex((x) => x.id === selected.id) + 1 : design.blocks.length);
     insertAt(p.make(), pos);
   };
+  const insertSaved = (id: string, at?: number) => {
+    const d = designRef.current, t = data.templates.find((x) => x.id === id); if (!d || !t) return;
+    const add = blocksOf(t); if (!add.length) return;
+    const pos = at ?? (selected ? d.blocks.findIndex((x) => x.id === selected.id) + 1 : d.blocks.length);
+    const bl = [...d.blocks]; bl.splice(Math.max(0, Math.min(pos, bl.length)), 0, ...add);
+    setDesign({ ...d, blocks: bl }); setSel(add[0].id); setSide("edit");
+  };
   const handleDrop = (data: string, at: number) => {
     if (data.startsWith("add:")) addFromPalette(data.slice(4), at);
+    else if (data.startsWith("blk:")) insertSaved(data.slice(4), at);
     else if (data.startsWith("move:")) moveTo(data.slice(5), at);
   };
   const dropRef = useRef(handleDrop);
@@ -384,15 +417,16 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
     <div className="space-y-4">
       {/* Top bar: style, designs, AI */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-full bg-cloud p-1" role="tablist" aria-label="Email style">
+        {mode === "message" && <div className="inline-flex rounded-full bg-cloud p-1" role="tablist" aria-label="Email style">
           <button type="button" role="tab" aria-selected={!design} onClick={() => design && toText()} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${!design ? "bg-white text-ink shadow-sm" : "text-muted"}`}>Simple text</button>
           <button type="button" role="tab" aria-selected={!!design} onClick={() => !design && toDesign()} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${design ? "bg-white text-ink shadow-sm" : "text-muted"}`}>Designed email</button>
-        </div>
+        </div>}
         <Button type="button" size="sm" variant="soft" onClick={() => setGallery(true)}>Browse designs</Button>
         <Button type="button" size="sm" variant="soft" onClick={() => { setDesign(scratchDesign()); setSel(null); setSide("add"); }}>Blank email</Button>
-        {data.templates.length > 0 && (
-          <select aria-label="Saved templates" className="field !h-9 !w-auto !py-0 text-sm" value="" onChange={(e) => pickSaved(e.target.value)}>
-            <option value="" disabled>Saved templates…</option>{data.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        {mode === "message" && data.templates.some(isMessage) && (
+          <select aria-label="Start from saved content" className="field !h-9 !w-auto !py-0 text-sm" value="" onChange={(e) => pickSaved(e.target.value)}>
+            <option value="" disabled>Start from saved…</option>
+            {(["template", "email"] as const).map((k) => { const l = data.templates.filter((t) => kindOf(t) === k); return l.length ? <optgroup key={k} label={k === "template" ? "Templates" : "Emails"}>{l.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup> : null; })}
           </select>
         )}
         <Button type="button" size="sm" variant="soft" icon="sparkle" onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>Write with AI</Button>
@@ -409,10 +443,10 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2">
+      {mode === "message" && <div className="grid gap-3 md:grid-cols-2">
         <Field label="Subject"><input data-merge className="field" value={subject} onChange={(e) => onSubject(e.target.value)} placeholder="What will they see in their inbox?" /></Field>
         {design && <Field label="Preview line"><input data-merge className="field" value={design.preheader} onChange={(e) => setDesign({ ...design, preheader: e.target.value })} placeholder="Grey text shown after the subject" /></Field>}
-      </div>
+      </div>}
       <div className="flex flex-wrap items-center gap-1.5" onMouseDown={(e) => e.preventDefault()}>
         <span className="text-[13px] font-medium text-muted">Insert field:</span>
         {MERGE_FIELDS.map((f) => (
@@ -439,7 +473,7 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           {/* Sidebar */}
-          <aside className="min-w-0 rounded-2xl border border-line bg-white p-3 lg:max-h-[680px] lg:overflow-y-auto">
+          <aside className={`min-w-0 rounded-2xl border border-line bg-white p-3 lg:overflow-y-auto ${tall ? "lg:max-h-[calc(100dvh-200px)]" : "lg:max-h-[680px]"}`}>
             <div className="mb-3 flex rounded-full bg-cloud p-1" role="tablist" aria-label="Editor panel">{sideTab("add", "Add")}{sideTab("edit", "Edit")}{sideTab("style", "Style")}</div>
 
             {side === "add" && (["Layout", "Content"] as const).map((g) => (
@@ -456,6 +490,25 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
                 </div>
               </div>
             ))}
+            {side === "add" && (() => {
+              const saved = data.templates.filter((t) => kindOf(t) === "block");
+              return (
+                <div className="mb-4">
+                  <div className="mb-2 px-1 text-[13px] font-semibold text-muted">Saved content blocks</div>
+                  {saved.length === 0 ? <p className="px-1 text-[12.5px] text-muted">Blocks you save in Content Builder (a footer, a signature, an offer) appear here to reuse in any email.</p> : (
+                    <div className="space-y-1.5">
+                      {saved.map((t) => (
+                        <button key={t.id} type="button" draggable onDragStart={(e) => { e.dataTransfer.setData("text/plain", "blk:" + t.id); e.dataTransfer.effectAllowed = "copy"; }}
+                          onClick={() => insertSaved(t.id)} title="Drag onto the email, or click to add"
+                          className="flex w-full cursor-grab items-center gap-2 rounded-xl border border-line bg-white px-2.5 py-2 text-left hover:border-teal active:cursor-grabbing">
+                          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-sun-t text-[#9a5a00]">▣</span><span className="truncate text-[13px] font-semibold text-ink">{t.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {side === "add" && <p className="px-1 text-[12.5px] text-muted">Drag a block onto the email where you want it, or click to add it {selected ? "after the selected block" : "at the end"}.</p>}
 
             {side === "edit" && (selected ? (
@@ -514,17 +567,17 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
           {/* Canvas */}
           <div className="min-w-0">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-ink">Email{contact ? ` for ${contact.name}` : " (sample contact)"}</div>
+              <div className="text-sm font-semibold text-ink">{mode === "block" ? "Content block" : `Email${contact ? ` for ${contact.name}` : " (sample contact)"}`}</div>
               <div className="flex items-center gap-2">
                 <div className="inline-flex rounded-full bg-cloud p-1" role="group" aria-label="Preview size">
                   {(["desktop", "mobile"] as const).map((d) => <button key={d} type="button" aria-pressed={device === d} onClick={() => setDevice(d)} className={`rounded-full px-3 py-1 text-[13px] font-semibold capitalize ${device === d ? "bg-white text-ink shadow-sm" : "text-muted"}`}>{d}</button>)}
                 </div>
-                <Button type="button" size="sm" variant="soft" icon="send" onClick={sendTest} disabled={testing}>{testing ? "Sending…" : "Send me a test"}</Button>
+                {mode === "message" && <Button type="button" size="sm" variant="soft" icon="send" onClick={sendTest} disabled={testing}>{testing ? "Sending…" : "Send me a test"}</Button>}
               </div>
             </div>
             <div className="overflow-hidden rounded-2xl border border-line" style={{ background: design.bg }}>
               <iframe ref={frame} title="Email canvas" sandbox="allow-same-origin" srcDoc={canvasHtml} onLoad={wire}
-                className={`mx-auto block h-[640px] border-0 transition-[width] ${device === "mobile" ? "w-[375px] max-w-full" : "w-full"}`} />
+                className={`mx-auto block border-0 transition-[width] ${tall ? "h-[calc(100dvh-250px)] min-h-[480px]" : "h-[640px]"} ${device === "mobile" ? "w-[375px] max-w-full" : "w-full"}`} />
             </div>
             <p className="mt-2 text-[12.5px] text-muted">Click a block to edit it. Drag blocks to move them. Campaign emails get your address and an unsubscribe link automatically.</p>
           </div>

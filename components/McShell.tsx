@@ -25,7 +25,7 @@ const STUDIOS: Studio[] = [
   ] },
   { id: "journey", label: "Journey Builder", icon: "route", href: "/journeys", match: (p) => p.startsWith("/journeys") },
   { id: "automation", label: "Automation Studio", icon: "bolt", href: "/automations", match: (p) => p.startsWith("/automations") },
-  { id: "content", label: "Content Builder", icon: "layers", href: "/emails?tab=templates", match: (p, t) => p.startsWith("/emails") && t === "templates" },
+  { id: "content", label: "Content Builder", icon: "layers", href: "/content", match: (p, t) => p.startsWith("/content") || (p.startsWith("/emails") && t === "templates") },
   { id: "audience", label: "Contact Builder", icon: "users", match: (p) => p.startsWith("/marketing/lists") || p.startsWith("/audience"), items: [
     { href: "/audience?tab=contacts", label: "All Contacts", text: "Every contact with channel status and linked data" },
     { href: "/audience?tab=subscribers", label: "All Subscribers", text: "Email status, unsubscribes, bounces and suppression list" },

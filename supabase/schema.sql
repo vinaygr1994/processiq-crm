@@ -558,3 +558,15 @@ begin
   execute 'create policy "crm_update" on public.suppressions for update to authenticated using (owner_id = public.crm_org() and public.crm_role() <> ''viewer'' and not public.crm_blocked()) with check (owner_id = public.crm_org())';
   execute 'create policy "crm_delete" on public.suppressions for delete to authenticated using (owner_id = public.crm_org() and public.crm_role() in (''owner'',''admin'',''manager''))';
 end $$;
+
+-- ===== 017_content_builder.sql =====
+-- Content Builder: every asset (email, template, content block, image, folder) lives in templates.
+alter table public.templates add column if not exists kind text not null default 'email';
+alter table public.templates add column if not exists folder text not null default '';
+alter table public.templates add column if not exists updated_at timestamptz not null default now();
+-- Public image library for emails (images in emails must be publicly reachable).
+insert into storage.buckets (id, name, public) values ('content', 'content', true) on conflict (id) do nothing;
+drop policy if exists "content_insert" on storage.objects;
+drop policy if exists "content_delete" on storage.objects;
+create policy "content_insert" on storage.objects for insert to authenticated with check (bucket_id = 'content' and (storage.foldername(name))[1] = public.crm_org()::text and public.crm_role() <> 'viewer');
+create policy "content_delete" on storage.objects for delete to authenticated using (bucket_id = 'content' and (storage.foldername(name))[1] = public.crm_org()::text and public.crm_role() <> 'viewer');

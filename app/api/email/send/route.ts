@@ -6,7 +6,9 @@ import { sanitizeDesign } from "@/lib/emailDesign";
 
 export const dynamic = "force-dynamic";
 
-interface Body { to?: string; subject?: string; body?: string; contactId?: string; marketing?: boolean; design?: unknown; test?: boolean; trackId?: string }
+interface Body { to?: string; subject?: string; body?: string; contactId?: string; marketing?: boolean; design?: unknown; test?: boolean; trackId?: string; vars?: Record<string, unknown> }
+/** Merge values for a test ("preview as" a contact): short strings only. */
+const cleanVars = (v: unknown) => v && typeof v === "object" ? Object.fromEntries(Object.entries(v as Record<string, unknown>).slice(0, 20).filter(([k, x]) => /^[a-z_]{1,30}$/.test(k) && typeof x === "string").map(([k, x]) => [k, (x as string).slice(0, 300)])) : undefined;
 
 export async function POST(req: Request) {
   const p = (await req.json().catch(() => ({}))) as Body;
@@ -21,6 +23,6 @@ export async function POST(req: Request) {
   const a = await authed(req);
   if (!a) return json({ error: "Please log in again." }, 401);
   if (p.test && to.toLowerCase() !== (a.user.email ?? "").toLowerCase()) return json({ error: "Test emails can only be sent to your own login email." }, 400);
-  const r = await sendMail({ sb: a.sb, to, subject, body: text, design: design ?? undefined, test: !!p.test, contactId: p.contactId, marketing: p.marketing && !p.test, baseUrl: appUrl(req), trackId: p.trackId && /^[0-9a-f-]{36}$/i.test(p.trackId) ? p.trackId : undefined });
+  const r = await sendMail({ sb: a.sb, to, subject, body: text, design: design ?? undefined, test: !!p.test, vars: p.test ? cleanVars(p.vars) : undefined, contactId: p.contactId, marketing: p.marketing && !p.test, baseUrl: appUrl(req), trackId: p.trackId && /^[0-9a-f-]{36}$/i.test(p.trackId) ? p.trackId : undefined });
   return r.ok ? json({ status: "sent" }) : json({ error: r.error }, r.code);
 }

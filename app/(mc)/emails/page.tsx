@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { audienceText } from "@/lib/sendEmail";
@@ -48,12 +48,14 @@ function EmailPageInner() {
   const [del, setDel] = useState<Template | Campaign | null>(null);
   const status = useStatus();
   const contacts = new Map(data.contacts.map((c) => [c.id, c]));
-  const tabs: [Tab, string][] = [["campaigns", "Sends"], ["templates", "Templates"], ["sent", "Activity"]];
+  const tabs: [Tab, string][] = [["campaigns", "Sends"], ["sent", "Activity"]];
+  // Templates moved to Content Builder.
+  useEffect(() => { if (params.get("tab") === "templates") router.replace("/content"); }, [params, router]);
 
   return (
     <div>
       <PageHeader title="Emails and templates" sub="Every send, your reusable templates and a log of each email."
-        action={<div className="flex gap-2"><Button variant="soft" icon="plus" onClick={() => setTpl("new")}>New template</Button><Link href="/marketing/send" className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-[15px] font-semibold text-white hover:bg-[#1d2a47]"><Icon name="send" className="size-4" />Send email</Link></div>} />
+        action={<div className="flex gap-2"><Link href="/content" className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white px-5 text-[15px] font-semibold text-ink hover:bg-cloud"><Icon name="layers" className="size-4" />Content Builder</Link><Link href="/marketing/send" className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-[15px] font-semibold text-white hover:bg-[#1d2a47]"><Icon name="send" className="size-4" />Send email</Link></div>} />
       {status?.demo && <p className="mb-4 rounded-2xl bg-sun-t px-4 py-3 text-sm text-[#7a4700]">Demo mode: emails are saved to history but not actually delivered.</p>}
       {status && !status.demo && !status.email && <p className="mb-4 rounded-2xl bg-sun-t px-4 py-3 text-sm text-[#7a4700]">Email sending isn&apos;t connected yet. See Settings → Email.</p>}
       <div className="mb-4 flex gap-1 border-b border-line" role="tablist">
