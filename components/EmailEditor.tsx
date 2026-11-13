@@ -8,7 +8,7 @@ import { callApi } from "@/lib/api";
 import { aiDraftEmail } from "@/lib/ai";
 import { fill } from "@/lib/format";
 import {
-  BLOCK_LABELS, LIBRARY, MERGE_FIELDS, PALETTE, PRESETS, bid, blankDesign, emailVars, isDesign, newBlock, paletteItem, parseDesign, plainOf, renderDesign, stringifyDesign,
+  BLOCK_LABELS, LIBRARY, MERGE_FIELDS, PALETTE, PRESETS, bid, blankDesign, scratchDesign, emailVars, isDesign, newBlock, paletteItem, parseDesign, plainOf, renderDesign, stringifyDesign,
   type Block, type Cell, type ColLayout, type Design, type Preset, type Social,
 } from "@/lib/emailDesign";
 
@@ -42,6 +42,18 @@ function Gallery({ onPick, onClose }: { onPick: (p: Preset) => void; onClose: ()
       </div>
       <div className="mb-4 flex flex-wrap gap-1.5">
         {["All", ...kinds].map((k) => <button key={k} type="button" onClick={() => setKind(k)} className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${kind === k ? "bg-ink text-white" : "border border-line bg-white text-body hover:bg-cloud"}`}>{k}</button>)}
+      </div>
+      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        <button type="button" onClick={() => onPick({ id: "scratch", name: "Blank", kind: "Blank", blurb: "", subject: "", design: scratchDesign() })}
+          className="flex items-center gap-4 rounded-2xl border-2 border-dashed border-[#b7c1d6] bg-white p-5 text-left transition hover:border-teal hover:bg-teal-t">
+          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-cloud text-2xl text-muted">+</span>
+          <span><span className="block font-semibold text-ink">Blank: start from scratch</span><span className="text-sm text-muted">No header or footer. Build with blocks or paste your own full HTML design.</span></span>
+        </button>
+        <button type="button" onClick={() => onPick({ id: "blank-branded", name: "Blank with header", kind: "Blank", blurb: "", subject: "", design: blankDesign([]) })}
+          className="flex items-center gap-4 rounded-2xl border-2 border-dashed border-[#b7c1d6] bg-white p-5 text-left transition hover:border-teal hover:bg-teal-t">
+          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-cloud text-2xl text-muted">▤</span>
+          <span><span className="block font-semibold text-ink">Blank with your header and footer</span><span className="text-sm text-muted">Your brand bar, logo and footer, with an empty body.</span></span>
+        </button>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {PRESETS.filter((p) => kind === "All" || p.kind === kind).map((p) => (
@@ -331,7 +343,7 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
     if (!design) return;
     onBody(renderDesign(design, TAGS_AS_TEXT, { assetBase: "https://x" }).text.replace(/\n--\n[\s\S]*$/, "").trim()); setSel(null);
   }
-  function pickPreset(p: Preset) { onSubject(p.subject); setDesign(clone(p.design)); setSel(null); setSide("add"); setGallery(false); scrollY.current = 0; }
+  function pickPreset(p: Preset) { if (p.subject) onSubject(p.subject); setDesign(clone(p.design)); setSel(null); setSide("add"); setGallery(false); scrollY.current = 0; }
   function pickSaved(id: string) { const t = data.templates.find((x) => x.id === id); if (!t) return; onSubject(t.subject); onBody(t.body); setSel(null); }
 
   async function draft() {
@@ -377,6 +389,7 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
           <button type="button" role="tab" aria-selected={!!design} onClick={() => !design && toDesign()} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${design ? "bg-white text-ink shadow-sm" : "text-muted"}`}>Designed email</button>
         </div>
         <Button type="button" size="sm" variant="soft" onClick={() => setGallery(true)}>Browse designs</Button>
+        <Button type="button" size="sm" variant="soft" onClick={() => { setDesign(scratchDesign()); setSel(null); setSide("add"); }}>Blank email</Button>
         {data.templates.length > 0 && (
           <select aria-label="Saved templates" className="field !h-9 !w-auto !py-0 text-sm" value="" onChange={(e) => pickSaved(e.target.value)}>
             <option value="" disabled>Saved templates…</option>{data.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -479,6 +492,16 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
 
             {side === "style" && (
               <div className="space-y-4">
+                <div>
+                  <span className="mb-1.5 block text-sm font-semibold text-ink">Header and footer</span>
+                  <div className="inline-flex rounded-full bg-cloud p-1" role="group" aria-label="Header and footer">
+                    {([["standard", "Show"], ["blank", "Hide"]] as const).map(([k, l]) => (
+                      <button key={k} type="button" aria-pressed={(design.chrome ?? "standard") === k} onClick={() => setDesign({ ...design, chrome: k === "blank" ? "blank" : undefined })}
+                        className={`rounded-full px-4 py-1.5 text-[13px] font-semibold ${(design.chrome ?? "standard") === k ? "bg-white text-ink shadow-sm" : "text-muted"}`}>{l}</button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] text-muted">Hide it when your design has its own header and footer. Marketing sends still add a small unsubscribe link, which the law requires.</p>
+                </div>
                 <ColorIn label="Brand colour" value={design.brand} onChange={(v) => setDesign({ ...design, brand: v ?? "#0b8a8a" })} />
                 <ColorIn label="Page background" value={design.bg} onChange={(v) => setDesign({ ...design, bg: v ?? "#f4f6fb" })} />
                 <ImageIn label="Logo (optional)" value={design.logo} onChange={(logo) => setDesign({ ...design, logo })} />

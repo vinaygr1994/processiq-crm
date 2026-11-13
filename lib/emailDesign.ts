@@ -26,7 +26,9 @@ export interface Block {
   layout?: ColLayout;
   social?: Social;
 }
-export interface Design { v: 1; brand: string; preheader: string; logo: string; footer: string; bg: string; blocks: Block[] }
+/** "blank" leaves out the brand bar, header and footer so the email can be built from scratch. */
+export type Chrome = "standard" | "blank";
+export interface Design { v: 1; brand: string; preheader: string; logo: string; footer: string; bg: string; blocks: Block[]; chrome?: Chrome }
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   hero: "Hero banner", heading: "Heading", text: "Text", image: "Image", button: "Button", columns: "Columns",
@@ -97,6 +99,8 @@ export const PALETTE: PaletteItem[] = [
 export const paletteItem = (key: string) => PALETTE.find((p) => p.key === key);
 
 export const blankDesign = (blocks: Block[] = []): Design => ({ v: 1, brand: "#0b8a8a", preheader: "", logo: "", footer: "", bg: "#f4f6fb", blocks });
+/** A completely empty email: no header, no footer, white page. */
+export const scratchDesign = (): Design => ({ ...blankDesign([]), bg: "#ffffff", chrome: "blank" });
 
 export const isDesign = (body: string) => body.startsWith(PREFIX);
 export const stringifyDesign = (d: Design) => PREFIX + JSON.stringify(d);
@@ -140,6 +144,7 @@ export function sanitizeDesign(raw: unknown): Design | null {
   return {
     v: 1, brand: hex(r.brand) ?? "#0b8a8a", bg: hex(r.bg) ?? "#f4f6fb",
     preheader: s(r.preheader, 200) ?? "", logo: s(r.logo, 2000) ?? "", footer: s(r.footer, 500) ?? "", blocks,
+    ...(r.chrome === "blank" ? { chrome: "blank" as const } : {}),
   };
 }
 
@@ -149,6 +154,14 @@ export const cleanHtml = (h: string) => h
   .replace(/<\s*(script|iframe|object|embed|form|input|button|meta|link|base)\b[\s\S]*?(<\s*\/\s*\1\s*>|\/?>)/gi, "")
   .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
   .replace(/(href|src)\s*=\s*(["']?)\s*javascript:[^"'\s>]*\2/gi, '$1="#"');
+
+/** A pasted full HTML document keeps its <style> rules and body; <html>/<head>/<body> wrappers are dropped. */
+export function bodyOf(h: string): string {
+  if (!/<body[\s>]/i.test(h)) return h;
+  const styles = (h.match(/<style[\s\S]*?<\/style>/gi) ?? []).join("");
+  const inner = h.replace(/^[\s\S]*?<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
+  return styles + inner.replace(/<style[\s\S]*?<\/style>/gi, "") ;
+}
 
 export type Vars = Record<string, string>;
 const sub = (t: string, v: Vars) => t.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, k: string) => v[k.toLowerCase()] ?? "");
@@ -176,6 +189,7 @@ export interface Rendered { html: string; text: string }
 
 export function renderDesign(d: Design, v: Vars, o: RenderOpts = {}): Rendered {
   const brand = d.brand, rows: string[] = [], plain: string[] = [];
+  const blank = d.chrome === "blank";
   const url = (raw: string, allowMail = false) => {
     let u = sub(raw ?? "", v).trim();
     if (/^\/(?!\/)/.test(u)) u = (o.assetBase ?? "") + u;
@@ -268,7 +282,11 @@ export function renderDesign(d: Design, v: Vars, o: RenderOpts = {}): Rendered {
         row(`<div style="text-align:center">${links.map(([l, u]) => `<a href="${esc(u)}" style="display:inline-block;margin:0 4px 8px;padding:8px 14px;border:1px solid #e4e8f0;border-radius:999px;font:600 13px ${FONT};color:#33405a;text-decoration:none">${l}</a>`).join("")}</div>`);
         plain.push(links.map(([l, u]) => `${l}: ${u}`).join("\n")); break;
       }
-      case "html": { const h = cleanHtml(sub(b.text ?? "", v)); if (h.trim()) row(h); break; }
+      case "html": {
+        const h = cleanHtml(bodyOf(sub(b.text ?? "", v)));
+        if (h.trim()) { row(h, blank ? "0" : undefined); plain.push(h.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim()); }
+        break;
+      }
       case "divider": row(`<div style="border-top:1px solid #e4e8f0;line-height:0;font-size:0">&nbsp;</div>`, `4px ${PAD}px 20px`); break;
       case "spacer": rows.push(`<tr><td style="height:${b.size ?? 24}px;line-height:${b.size ?? 24}px;font-size:0">&nbsp;</td></tr>`); break;
     }
@@ -294,15 +312,23 @@ export function renderDesign(d: Design, v: Vars, o: RenderOpts = {}): Rendered {
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light">` +
     `<style>body{margin:0}img{-ms-interpolation-mode:bicubic}@media (max-width:620px){.piq-col{max-width:100%!important;display:block!important}.piq-c4{max-width:50%!important}.piq-wrap{border-radius:0!important}}${editorCss}</style></head>` +
     `<body style="margin:0;padding:0;background:${bg}">${pre}` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${bg}"><tr><td align="center" style="padding:24px 12px">` +
-    `<table role="presentation" class="piq-wrap" width="${W}" cellpadding="0" cellspacing="0" style="width:100%;max-width:${W}px;background:#ffffff;border-radius:14px;overflow:hidden">` +
-    `<tr><td style="height:6px;background:${brand};line-height:6px;font-size:0">&nbsp;</td></tr>` +
-    (head ? `<tr><td style="padding:22px ${PAD}px 20px">${head}</td></tr>` : `<tr><td style="height:18px;line-height:18px;font-size:0">&nbsp;</td></tr>`) +
-    rows.join("") + `<tr><td style="height:12px;line-height:12px;font-size:0">&nbsp;</td></tr></table>` +
-    `<div style="max-width:${W}px;padding:16px 20px;font:12.5px/1.6 ${FONT};color:#6b7690;text-align:center">${footBits.join("<br>")}${unsub}</div>` +
-    `</td></tr></table></body></html>`;
+    (blank
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${bg}"><tr><td align="center" style="padding:0">` +
+        `<table role="presentation" class="piq-wrap" width="100%" cellpadding="0" cellspacing="0" style="width:100%">` +
+        (rows.length ? rows.join("") : o.editor ? `<tr><td style="padding:60px 20px;font:14px ${FONT};color:#9aa5bd;text-align:center">Blank email. Add blocks from the left, or a Custom HTML block to paste your own design.</td></tr>` : "") +
+        `</table>` +
+        (unsub ? `<div style="padding:12px 20px;font:12px/1.6 ${FONT};color:#6b7690;text-align:center">${unsub.replace(/^<br>/, "")}</div>` : "") +
+        `</td></tr></table>`
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${bg}"><tr><td align="center" style="padding:24px 12px">` +
+        `<table role="presentation" class="piq-wrap" width="${W}" cellpadding="0" cellspacing="0" style="width:100%;max-width:${W}px;background:#ffffff;border-radius:14px;overflow:hidden">` +
+        `<tr><td style="height:6px;background:${brand};line-height:6px;font-size:0">&nbsp;</td></tr>` +
+        (head ? `<tr><td style="padding:22px ${PAD}px 20px">${head}</td></tr>` : `<tr><td style="height:18px;line-height:18px;font-size:0">&nbsp;</td></tr>`) +
+        rows.join("") + `<tr><td style="height:12px;line-height:12px;font-size:0">&nbsp;</td></tr></table>` +
+        `<div style="max-width:${W}px;padding:16px 20px;font:12.5px/1.6 ${FONT};color:#6b7690;text-align:center">${footBits.join("<br>")}${unsub}</div>` +
+        `</td></tr></table>`) +
+    `</body></html>`;
 
-  const foot = [d.footer && sub(d.footer, v), biz && o.address ? `${biz}, ${o.address}` : biz].filter(Boolean).join("\n");
+  const foot = blank ? "" : [d.footer && sub(d.footer, v), biz && o.address ? `${biz}, ${o.address}` : biz].filter(Boolean).join("\n");
   const text = plain.filter(Boolean).join("\n\n") + (foot ? `\n\n--\n${foot}` : "") + (o.unsubscribeUrl ? `\nUnsubscribe: ${o.unsubscribeUrl}` : "");
   return { html, text };
 }
