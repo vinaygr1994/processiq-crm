@@ -22,6 +22,8 @@ With no environment variables it runs in **demo mode**: sample data in your brow
 3. **Anthropic** (AI): create an API key.
 4. Add the variables from `.env.example` to Vercel (Project → Settings → Environment Variables) and redeploy.
 
+5. **Bounces and spam complaints** (optional but recommended): in Resend → Webhooks, add `https://<your app>/api/webhooks/resend` with the events `email.bounced` and `email.complained`. Copy its signing secret into Vercel as `RESEND_WEBHOOK_SECRET`. Hard bounces and complaints are then suppressed automatically (Contact Builder → All Subscribers).
+
 Settings → Connections inside the app shows what is connected.
 
 ## Tech

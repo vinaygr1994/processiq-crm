@@ -531,3 +531,30 @@ begin
     execute format('create policy "crm_delete" on public.%I for delete to authenticated using (owner_id = public.crm_org() and public.crm_role() <> ''viewer'' and not public.crm_blocked())', t);
   end loop;
 end $$;
+
+-- ===== 016_subscribers.sql =====
+-- Subscriber status (why an address is suppressed) and a suppression list for addresses that must never be emailed.
+alter table public.contacts add column if not exists email_status text not null default '';
+alter table public.contacts add column if not exists unsub_reason text not null default '';
+alter table public.contacts add column if not exists unsub_at timestamptz;
+create table if not exists public.suppressions (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null default public.crm_org() references auth.users(id) on delete cascade,
+  email text not null,
+  reason text not null default '',
+  created_at timestamptz not null default now()
+);
+create unique index if not exists suppressions_email_idx on public.suppressions(owner_id, lower(email));
+
+do $$
+begin
+  execute 'alter table public.suppressions enable row level security';
+  execute 'drop policy if exists "crm_select" on public.suppressions';
+  execute 'drop policy if exists "crm_insert" on public.suppressions';
+  execute 'drop policy if exists "crm_update" on public.suppressions';
+  execute 'drop policy if exists "crm_delete" on public.suppressions';
+  execute 'create policy "crm_select" on public.suppressions for select to authenticated using (owner_id = public.crm_org() and not public.crm_blocked())';
+  execute 'create policy "crm_insert" on public.suppressions for insert to authenticated with check (owner_id = public.crm_org() and public.crm_role() <> ''viewer'' and not public.crm_blocked())';
+  execute 'create policy "crm_update" on public.suppressions for update to authenticated using (owner_id = public.crm_org() and public.crm_role() <> ''viewer'' and not public.crm_blocked()) with check (owner_id = public.crm_org())';
+  execute 'create policy "crm_delete" on public.suppressions for delete to authenticated using (owner_id = public.crm_org() and public.crm_role() in (''owner'',''admin'',''manager''))';
+end $$;

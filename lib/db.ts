@@ -3,9 +3,9 @@ import { supabase } from "./supabase";
 import { seedRows } from "./seed";
 import type { Rows, TableName, Tables } from "./types";
 
-const TABLES: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "campaigns", "emails", "settings", "workflows", "workflow_runs", "segments", "forms", "form_submissions", "services", "bookings", "plans", "memberships", "org_members", "objects", "records", "messages", "data_extensions", "de_rows"];
+const TABLES: TableName[] = ["contacts", "deals", "visits", "autolog", "tasks", "activities", "templates", "campaigns", "emails", "settings", "workflows", "workflow_runs", "segments", "forms", "form_submissions", "services", "bookings", "plans", "memberships", "org_members", "objects", "records", "messages", "data_extensions", "de_rows", "suppressions"];
 /** Tables added by later migrations: load as empty until the migration is run. */
-const OPTIONAL: TableName[] = ["segments", "forms", "form_submissions", "services", "bookings", "plans", "memberships", "org_members", "objects", "records", "messages", "data_extensions", "de_rows"];
+const OPTIONAL: TableName[] = ["segments", "forms", "form_submissions", "services", "bookings", "plans", "memberships", "org_members", "objects", "records", "messages", "data_extensions", "de_rows", "suppressions"];
 const KEY = "piq-crm-demo-v3";
 
 export interface Backend {

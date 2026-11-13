@@ -15,7 +15,13 @@ export interface Contact {
   custom?: Record<string, string>;
   created_at: string;
   sms_opt_out?: boolean;
+  /** Why email is suppressed: "" (active), "unsubscribed", "bounced", "complaint", "suppressed" (on the suppression list), "manual". Migration 016. */
+  email_status?: string;
+  unsub_reason?: string;
+  unsub_at?: string | null;
 }
+/** An address that must never get marketing email, whether or not it is a contact. */
+export interface Suppression { id: string; email: string; reason: string; created_at: string }
 export interface Deal {
   id: string;
   title: string;
@@ -204,6 +210,7 @@ export interface DataExtension { id: string; name: string; external_key: string;
 export interface DeRow { id: string; de_id: string; data: Record<string, string>; created_at: string }
 
 export interface Tables {
+  suppressions: Suppression;
   data_extensions: DataExtension;
   de_rows: DeRow;
   messages: Message;

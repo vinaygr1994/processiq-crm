@@ -28,6 +28,7 @@ const STUDIOS: Studio[] = [
   { id: "content", label: "Content Builder", icon: "layers", href: "/emails?tab=templates", match: (p, t) => p.startsWith("/emails") && t === "templates" },
   { id: "audience", label: "Contact Builder", icon: "users", match: (p) => p.startsWith("/marketing/lists") || p.startsWith("/audience"), items: [
     { href: "/audience?tab=contacts", label: "All Contacts", text: "Every contact with channel status and linked data" },
+    { href: "/audience?tab=subscribers", label: "All Subscribers", text: "Email status, unsubscribes, bounces and suppression list" },
     { href: "/audience?tab=extensions", label: "Data Extensions", text: "Your own data tables: create, import, filter" },
     { href: "/audience?tab=designer", label: "Data Designer", text: "How data extensions relate to a contact" },
     { href: "/marketing/lists", label: "Lists and Segments", text: "Static lists and rule-based segments" },

@@ -4,15 +4,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { DeBuilder } from "@/components/DeBuilder";
+import { Subscribers, subStatus } from "@/components/Subscribers";
 import { Avatar, Badge, Button, Card, Empty, Modal, PageHeader } from "@/components/ui";
 import { useCrm } from "@/lib/store";
 import { rowsFor, typeLabel } from "@/lib/de";
 import { timeAgo } from "@/lib/format";
 import type { Contact, DataExtension } from "@/lib/types";
 
-type Tab = "contacts" | "designer" | "extensions";
-const TABS: [Tab, string][] = [["contacts", "All Contacts"], ["designer", "Data Designer"], ["extensions", "Data Extensions"]];
-const stat = (c: Contact) => (c.unsubscribed ? ["Unsubscribed", "rose"] : c.email ? ["Active", "green"] : ["No email", "gray"]) as [string, "rose" | "green" | "gray"];
+type Tab = "contacts" | "subscribers" | "designer" | "extensions";
+const TABS: [Tab, string][] = [["contacts", "All Contacts"], ["subscribers", "All Subscribers"], ["designer", "Data Designer"], ["extensions", "Data Extensions"]];
+const NONE = new Set<string>();
+const stat = (c: Contact) => { const s = subStatus(c, NONE); return [s, s === "Active" ? "green" : s === "No email" ? "gray" : s === "Bounced" ? "sun" : "rose"] as [string, "rose" | "green" | "gray" | "sun"]; };
 
 function Profile({ c, onClose }: { c: Contact; onClose: () => void }) {
   const { data } = useCrm();
@@ -41,7 +43,7 @@ function Inner() {
   const { data, can } = useCrm();
   const router = useRouter();
   const p = useSearchParams().get("tab");
-  const tab: Tab = p === "designer" || p === "extensions" ? p : "contacts";
+  const tab: Tab = p === "designer" || p === "extensions" || p === "subscribers" ? p : "contacts";
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [open, setOpen] = useState<Contact | null>(null);
@@ -64,14 +66,15 @@ function Inner() {
       <PageHeader title="Contact Builder" sub="One view of every contact, the data linked to them, and your data extensions."
         action={can("write") ? <Button icon="plus" onClick={() => setCreate(true)}>Create data extension</Button> : undefined} />
       <div className="mb-4 flex gap-1 border-b border-line" role="tablist">
-        {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setQ(""); setPage(0); router.replace(`/audience?tab=${k}`); }} className={`pill -mb-px border-b-2 px-3 py-2 text-[13.5px] font-semibold ${tab === k ? "border-teal-d text-teal-d" : "border-transparent text-muted hover:text-ink"}`}>{l} <span className="font-normal opacity-70">{k === "contacts" ? data.contacts.length : k === "extensions" ? data.data_extensions.length : linked.length}</span></button>)}
+        {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setQ(""); setPage(0); router.replace(`/audience?tab=${k}`); }} className={`pill -mb-px border-b-2 px-3 py-2 text-[13.5px] font-semibold ${tab === k ? "border-teal-d text-teal-d" : "border-transparent text-muted hover:text-ink"}`}>{l} <span className="font-normal opacity-70">{k === "contacts" ? data.contacts.length : k === "subscribers" ? data.contacts.filter((c) => c.email).length : k === "extensions" ? data.data_extensions.length : linked.length}</span></button>)}
         <Link href="/marketing/lists" className="pill -mb-px ml-auto border-b-2 border-transparent px-3 py-2 text-[13.5px] font-semibold text-muted hover:text-ink">Lists and segments</Link>
       </div>
 
-      {tab !== "designer" && (
+      {tab === "subscribers" && <Subscribers />}
+      {tab !== "designer" && tab !== "subscribers" && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1 sm:max-w-xs"><Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input className="field !pl-9" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder={tab === "contacts" ? "Search name, email, phone or contact key" : "Search data extensions"} aria-label="Search" /></div>
-          {tab === "contacts" && <select className="field !w-auto" aria-label="Email status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">Any email status</option><option>Active</option><option>Unsubscribed</option><option>No email</option></select>}
+          {tab === "contacts" && <select className="field !w-auto" aria-label="Email status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">Any email status</option><option>Active</option><option>Unsubscribed</option><option>Bounced</option><option>Spam complaint</option><option>No email</option></select>}
           <span className="ml-auto text-[13px] text-muted">{tab === "contacts" ? `${contacts.length} contacts` : `${des.length} data extensions`}</span>
         </div>
       )}

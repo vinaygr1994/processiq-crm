@@ -102,6 +102,10 @@ export function seedRows(): Rows {
         statuses: ["Booked", "Attended", "No-show", "Cancelled"],
         fields: [{ key: "class", label: "Class", type: "select", options: ["Strength", "Mobility", "HIIT", "Yoga"], required: true }, { key: "date", label: "Class date", type: "date", required: true }, { key: "trial", label: "Free trial", type: "checkbox" }] },
     ],
+    suppressions: [
+      { id: "sp1", email: "old-list@example.com", reason: "Imported suppression list", created_at: ago(30 * D) },
+      { id: "sp2", email: "competitor@example.com", reason: "Competitor", created_at: ago(10 * D) },
+    ],
     data_extensions: [
       { id: "de1", name: "Appointments", external_key: "appointments", description: "Upcoming and past appointments, one row per visit.", folder: "Operations", sendable: true, link: { field: "Email", to: "email" }, created_at: ago(20 * D),
         fields: [{ name: "AppointmentId", type: "text", length: 20, primary: true, required: true }, { name: "Email", type: "email", required: true }, { name: "FirstName", type: "text", length: 50 }, { name: "Service", type: "text", length: 80 }, { name: "AppointmentDate", type: "date" }, { name: "Amount", type: "decimal" }, { name: "Confirmed", type: "boolean", default: "false" }] },

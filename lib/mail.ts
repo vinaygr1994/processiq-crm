@@ -16,7 +16,7 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
   const scope = (q: any) => (o.ownerId ? q.eq("owner_id", o.ownerId) : q);
 
   const { data: s } = (await scope(o.sb.from("settings").select("*")).limit(1).maybeSingle()) as { data: Record<string, string> | null };
-  type C = { id: string; email: string; unsubscribed: boolean; name: string; company: string };
+  type C = { id: string; email: string; unsubscribed: boolean; name: string; company: string; email_status?: string };
   let contact = null as C | null;
   if (o.test || o.system) {
     // A test goes only to the logged-in user (the route checks the address).
@@ -24,10 +24,16 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
     if (!s?.owner_email || s.owner_email.toLowerCase() !== o.to.toLowerCase()) return { ok: false, code: 400, error: "Owner alert email isn't set in Settings." };
   } else {
     if (!o.contactId) return { ok: false, code: 400, error: "Choose a contact to email." };
-    const r = (await scope(o.sb.from("contacts").select("id,email,unsubscribed,name,company").eq("id", o.contactId)).maybeSingle()) as { data: C | null };
+    const r = (await scope(o.sb.from("contacts").select("*").eq("id", o.contactId)).maybeSingle()) as { data: C | null };
     contact = r.data;
     if (!contact || contact.email.toLowerCase() !== o.to.toLowerCase()) return { ok: false, code: 404, error: "That contact wasn't found." };
     if (o.marketing && contact.unsubscribed) return { ok: false, code: 400, error: "This contact has unsubscribed." };
+    // A hard bounce or spam complaint stops every email, not just marketing, to protect your sender reputation.
+    if (contact.email_status === "bounced" || contact.email_status === "complaint") return { ok: false, code: 400, error: contact.email_status === "bounced" ? "This address bounced. Fix the email address to send again." : "This person marked an email as spam." };
+    if (o.marketing) {
+      const sup = await scope(o.sb.from("suppressions").select("id").ilike("email", contact.email.replace(/[%_\\]/g, "\\$&"))).limit(1);
+      if (!sup.error && sup.data?.length) return { ok: false, code: 400, error: "This address is on your suppression list." };
+    }
   }
 
   const name = (s?.sender_name || s?.business_name || "").replace(/["<>\r\n]/g, "").trim();
