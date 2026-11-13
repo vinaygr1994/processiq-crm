@@ -5,6 +5,7 @@ import { isDemo } from "./config";
 import { backend, resetDemo } from "./db";
 import { resetClock } from "./clock";
 import { supabase } from "./supabase";
+import { friendlyDbError } from "./dbErrors";
 import { can, type Action } from "./perm";
 import type { Role, NewRow, Rows, Settings, TableName, Tables } from "./types";
 
@@ -74,7 +75,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     try {
       setData(await backend.loadAll());
     } catch (e) {
-      toast(`Couldn't load your data: ${(e as Error).message}`, "error");
+      toast(`Couldn't load your data: ${friendlyDbError((e as Error).message)}`, "error");
     } finally {
       setReady(true);
     }
@@ -133,7 +134,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       setData((d) => ({ ...d, [t]: [created, ...(d[t] as Tables[typeof t][])] }) as Rows);
       return created;
     } catch (e) {
-      toast(`Couldn't save: ${(e as Error).message}`, "error");
+      toast(`Couldn't save: ${friendlyDbError((e as Error).message)}`, "error");
       return null;
     }
   }, [toast]);
@@ -143,7 +144,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     try {
       await backend.update(t, id, patch);
     } catch (e) {
-      toast(`Couldn't save: ${(e as Error).message}`, "error");
+      toast(`Couldn't save: ${friendlyDbError((e as Error).message)}`, "error");
       load();
     }
   }, [toast, load]);
@@ -153,7 +154,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     try {
       await backend.remove(t, id);
     } catch (e) {
-      toast(`Couldn't delete: ${(e as Error).message}`, "error");
+      toast(`Couldn't delete: ${friendlyDbError((e as Error).message)}`, "error");
       load();
     }
   }, [toast, load]);
@@ -164,7 +165,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     try {
       await backend.removeMany(t, ids);
     } catch (e) {
-      toast(`Couldn't delete: ${(e as Error).message}`, "error");
+      toast(`Couldn't delete: ${friendlyDbError((e as Error).message)}`, "error");
       load();
     }
   }, [toast, load]);

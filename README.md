@@ -29,3 +29,9 @@ Settings → Connections inside the app shows what is connected.
 Next.js (App Router) · TypeScript · Tailwind CSS · Supabase (Postgres + Auth + row-level security) · Resend · Anthropic API. Deploys to Vercel.
 
 Security notes: every table is protected by row-level security (people only see their own rows); emails can only be sent to contacts in your own CRM; marketing emails always include your address and a signed one-click unsubscribe link; demo mode never sends real email.
+
+## Automatic database updates
+
+Every Vercel build runs `scripts/migrate.mjs`, which applies `supabase/schema.sql` to your database before the app is built. The file is safe to run repeatedly, so new tables (forms, data extensions and so on) always exist before the features that use them go live.
+
+Set `SUPABASE_DB_URL` in Vercel (Settings → Environment Variables) to your Supabase **Session pooler** connection string (Supabase → Connect → Session pooler). Without it, the build prints a warning and skips the update. You can also run it by hand with `SUPABASE_DB_URL=... npm run db:migrate`.
