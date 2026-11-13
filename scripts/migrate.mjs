@@ -3,7 +3,8 @@
 // number of times (every statement is "if not exists" / "create or replace").
 //
 // Needs SUPABASE_DB_URL (Supabase → Connect → Session pooler connection string).
-// Without it the build continues and only prints a warning.
+// Without it, or if the database can't be reached, the build continues and only
+// prints a warning: a database problem must never block a deploy.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
@@ -16,16 +17,18 @@ if (!url) {
 
 const file = fileURLToPath(new URL("../supabase/schema.sql", import.meta.url));
 const schema = readFileSync(file, "utf8");
-const sql = postgres(url, { ssl: /sslmode=disable/.test(url) ? false : "require", max: 1, prepare: false, onnotice: () => {}, connect_timeout: 20 });
-
+let sql;
 try {
+  sql = postgres(url, { ssl: /sslmode=disable/.test(url) ? false : "require", max: 1, prepare: false, onnotice: () => {}, connect_timeout: 20 });
   const t0 = Date.now();
   await sql.unsafe(schema);
   await sql.unsafe("notify pgrst, 'reload schema'");
   console.log(`[migrate] Database is up to date (${Date.now() - t0} ms).`);
 } catch (e) {
-  console.error(`[migrate] Database update failed: ${e.message}`);
-  process.exitCode = 1;
+  // Never print the URL itself: it contains the database password.
+  console.warn(`[migrate] WARNING: database update skipped: ${String(e?.message ?? e).replace(url, "<SUPABASE_DB_URL>")}`);
+  console.warn("[migrate] Check SUPABASE_DB_URL in Vercel (use the Session pooler string, with your real password), or run supabase/schema.sql in the Supabase SQL Editor.");
 } finally {
-  await sql.end({ timeout: 5 });
+  try { await sql?.end({ timeout: 5 }); } catch {}
 }
+process.exitCode = 0;
