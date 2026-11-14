@@ -93,8 +93,17 @@ const remoteBackend: Backend = {
     throw new Error("Couldn't save");
   },
   async update(t, id, patch) {
-    const { error } = await supabase().from(t).update(patch as never).eq("id", id);
-    if (error) throw new Error(error.message);
+    // Like insert: if the database is behind (a column not added yet), save everything else instead of failing.
+    let r: Record<string, unknown> = { ...patch };
+    for (let i = 0; i < 6; i++) {
+      if (!Object.keys(r).length) return;
+      const { error } = await supabase().from(t).update(r as never).eq("id", id);
+      if (!error) return;
+      const col = missingColumn(error.message);
+      if (!col || !(col in r)) throw new Error(error.message);
+      r = { ...r }; delete r[col];
+    }
+    throw new Error("Couldn't save");
   },
   async remove(t, id) {
     const { error } = await supabase().from(t).delete().eq("id", id);
