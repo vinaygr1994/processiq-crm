@@ -49,6 +49,8 @@ interface Ctx {
   resetDemoData: () => Promise<void>;
   toast: (text: string, tone?: "ok" | "error") => void;
   toasts: Toast[];
+  /** Database schema version (null = not checked yet / demo; 0 = older than version tracking). */
+  dbVersion: number | null;
 }
 const CrmContext = createContext<Ctx | null>(null);
 export const useCrm = () => {
@@ -63,6 +65,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [userEmail, setUserEmail] = useState(isDemo ? "demo@processiq.crm" : "");
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [dbVersion, setDbVersion] = useState<number | null>(null);
   const seq = useRef(0);
 
   const toast = useCallback((text: string, tone: "ok" | "error" = "ok") => {
@@ -72,6 +75,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const load = useCallback(async () => {
+    if (!isDemo) supabase().from("crm_meta").select("value").eq("key", "schema_version").maybeSingle()
+      .then(({ data, error }) => setDbVersion(error ? 0 : Number(data?.value) || 0), () => setDbVersion(0));
     try {
       setData(await backend.loadAll());
     } catch (e) {
@@ -204,8 +209,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, [load, toast]);
 
   const value = useMemo<Ctx>(
-    () => ({ data, ready, userEmail, me, can: canDo, team, settings, add, update, remove, removeMany, saveSettings, reload: load, signOut, resetDemoData, toast, toasts }),
-    [data, ready, userEmail, me, canDo, team, settings, add, update, remove, removeMany, saveSettings, load, signOut, resetDemoData, toast, toasts],
+    () => ({ data, ready, userEmail, me, can: canDo, team, settings, add, update, remove, removeMany, saveSettings, reload: load, signOut, resetDemoData, toast, toasts, dbVersion }),
+    [data, ready, userEmail, me, canDo, team, settings, add, update, remove, removeMany, saveSettings, load, signOut, resetDemoData, toast, toasts, dbVersion],
   );
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

@@ -570,3 +570,14 @@ drop policy if exists "content_insert" on storage.objects;
 drop policy if exists "content_delete" on storage.objects;
 create policy "content_insert" on storage.objects for insert to authenticated with check (bucket_id = 'content' and (storage.foldername(name))[1] = public.crm_org()::text and public.crm_role() <> 'viewer');
 create policy "content_delete" on storage.objects for delete to authenticated using (bucket_id = 'content' and (storage.foldername(name))[1] = public.crm_org()::text and public.crm_role() <> 'viewer');
+
+-- ===== 018_schema_version.sql =====
+-- Records which version of this file the database has, so the app can tell when an update is pending.
+create table if not exists public.crm_meta (key text primary key, value text not null default '', updated_at timestamptz not null default now());
+alter table public.crm_meta enable row level security;
+drop policy if exists "crm_meta_read" on public.crm_meta;
+create policy "crm_meta_read" on public.crm_meta for select to authenticated using (true);
+
+-- KEEP THIS LAST. When you add a section above, bump the number here AND SCHEMA_VERSION in lib/schemaVersion.ts.
+insert into public.crm_meta (key, value, updated_at) values ('schema_version', '18', now())
+  on conflict (key) do update set value = excluded.value, updated_at = now();

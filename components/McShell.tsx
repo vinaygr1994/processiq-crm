@@ -1,4 +1,5 @@
 "use client";
+import { DbNotice } from "./DbNotice";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
@@ -95,6 +96,7 @@ export function McShell({ children }: { children: ReactNode }) {
         </div>
         <Suspense fallback={<div className="h-11 border-b border-line bg-white" />}><Nav /></Suspense>
       </header>
+      <DbNotice />
       {isDemo && <div className="border-b border-[#f3d9a8] bg-[#fff6e5] px-4 py-1.5 text-center text-[12.5px] text-[#7a4700]"><strong>Demo workspace.</strong> Sample data saved only in this browser. Messages are not really sent.</div>}
       <main className={`mx-auto px-4 pb-16 pt-5 sm:px-6 lg:pt-6 ${wide ? "max-w-none" : "max-w-[1440px]"}`}>
         {ready && me.role === "viewer" && <div className="mb-4 rounded-md border border-[#f3d9a8] bg-sun-t px-4 py-2 text-[13px] text-ink">You have read-only access.</div>}
