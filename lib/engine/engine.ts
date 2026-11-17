@@ -6,6 +6,7 @@ import { branches, uid } from "./types";
 import { isDesign, parseDesign, plainOf, emailVars, type Design } from "../emailDesign";
 import { runScheduledSends } from "./sends";
 import { inSegment, segCtx } from "../segments";
+import { deMembers, newContact, rowVars } from "../deSend";
 
 /** Minimal storage the engine needs. Implemented for localStorage (demo) and Supabase (live / server). */
 export interface Db {
@@ -113,6 +114,18 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
   const segments = segTriggers ? await db.list("segments").catch(() => []) : [];
   const bookings = active.some((w) => w.trigger.type.startsWith("booking_")) ? await db.list("bookings").catch(() => []) : [];
   const submissions = active.some((w) => w.trigger.type === "form_submitted") ? await db.list("form_submissions").catch(() => []) : [];
+  // Data extension entry sources: the DE rows, and each row's fields as merge fields ({{FirstName}}, {{City}}…).
+  const deTriggers = active.filter((w) => w.trigger.type === "data_extension" && w.trigger.de);
+  const des = deTriggers.length ? await db.list("data_extensions").catch(() => []) : [];
+  const deRows = deTriggers.length ? await db.list("de_rows").catch(() => []) : [];
+  const deVarsByWf = new Map<string, Map<string, Record<string, string>>>();
+  for (const w of deTriggers) {
+    const de = des.find((d) => d.id === w.trigger.de);
+    if (!de?.link) continue;
+    const m = new Map<string, Record<string, string>>();
+    for (const r of deRows) if (r.de_id === de.id) { const k = String(r.data[de.link.field] ?? "").trim().toLowerCase(); if (k && !m.has(k)) m.set(k, rowVars(de, r)); }
+    deVarsByWf.set(w.id, m);
+  }
   const byDeal = (id: string | null) => deals.find((d) => d.id === id);
   const byContact = (id: string | null) => contacts.find((c) => c.id === id);
   const byVisit = (id: string | null) => visits.find((v) => v.id === id);
@@ -161,6 +174,16 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
       const s = segments.find((g) => g.id === t.segment);
       if (s) { const x = segCtx(emails, deals, runs, now); for (const c of contacts) if (inSegment(c, s, x)) await enrol(w, `seg:${c.id}`, null, null, c); }
     }
+    if (t.type === "data_extension" && t.de) {
+      const r = deMembers([t.de], des, deRows, contacts);
+      for (const m of r.matched) await enrol(w, `de:${t.de}:${m.contact.id}`, null, null, m.contact);
+      for (const f of r.fresh) {
+        // A new address in the DE becomes a contact first, so unsubscribes and tracking work.
+        let c: Contact | null = null;
+        try { c = await db.insert("contacts", { ...newContact(f), created_at: iso(now) } as never) as Contact; } catch { c = null; }
+        if (c) { contacts.push(c); await enrol(w, `de:${t.de}:${c.id}`, null, null, c); }
+      }
+    }
     if (t.type === "visit_no_show") for (const v of visits) if (v.status === "no_show" && new Date(v.starts_at).getTime() >= since) await enrol(w, `vnoshow:${v.id}`, byDeal(v.deal_id) ?? null, v);
   }
 
@@ -185,7 +208,8 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
       if (wf.exit.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = wf.trigger.goal ? "Met exit criteria" : "Reached the goal"; break; }
       const step = stepAt(wf.steps, pos);
       if (!step) { status = "done"; break; }
-      const vars = mergeVars(deal, contact, visit, settings);
+      const deVars = contact?.email ? deVarsByWf.get(wf.id)?.get(contact.email.toLowerCase()) ?? deVarsByWf.get(wf.id)?.get(contact.phone ?? "") : undefined;
+      const vars = { ...mergeVars(deal, contact, visit, settings), ...(deVars ?? {}) };
       sum.steps++;
       let next = advance(wf.steps, pos);
       if (step.type === "wait") {

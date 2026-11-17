@@ -28,7 +28,7 @@ const getList = (steps: Step[], lp: ListPath): Step[] => {
   return l;
 };
 const lpKey = (lp: ListPath) => lp.map(([a, b]) => `${a}:${b}`).join("/");
-const ENTRY_ICON: Record<string, string> = { Contacts: "users", Deals: "pipeline", Bookings: "calendar", "Sales visits": "home" };
+const ENTRY_ICON: Record<string, string> = { Data: "layers", Contacts: "users", Deals: "pipeline", Bookings: "calendar", "Sales visits": "home" };
 const entryIcon = (t: Trigger["type"]) =>
   t === "form_submitted" ? "note" : t === "segment" ? "layers" : t === "audience" ? "mail" : t === "tag_added" ? "tag" : ENTRY_ICON[ENTRY.find((x) => x.id === t)?.group ?? "Contacts"];
 const fmtDate = (d: string) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? d : t.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
@@ -312,7 +312,7 @@ export default function JourneyPage() {
     else if (d.startsWith("mv:")) move(d.slice(3), lp, index);
     else if (d.startsWith("entry:")) toast("Drop entry sources on the Entry Source at the start of the journey");
   };
-  const setEntry = (t: Trigger["type"]) => { setTrig({ type: t, reentry: trigger.reentry, goal: trigger.goal, version: trigger.version }); setSel("entry"); };
+  const setEntry = (t: Trigger["type"]) => { setTrig({ type: t, reentry: t === "data_extension" ? trigger.reentry ?? "once" : trigger.reentry, goal: trigger.goal, version: trigger.version }); setSel("entry"); };
 
   /* ---------- Validation ---------- */
   function validate() {
@@ -320,6 +320,7 @@ export default function JourneyPage() {
     if (trigger.type === "tag_added" && !trigger.tag) errors.push("Entry source: choose the tag that starts this journey.");
     if (trigger.type === "stage_changed" && !trigger.stage) errors.push("Entry source: choose the deal stage that starts this journey.");
     if (trigger.type === "segment" && !data.segments.some((s) => s.id === trigger.segment)) errors.push("Entry source: choose the smart segment.");
+    if (trigger.type === "data_extension" && !data.data_extensions.some((d) => d.id === trigger.de && d.sendable && d.link)) errors.push("Entry source: choose a sendable data extension.");
     if (!steps.length) errors.push("Add at least one activity to the canvas.");
     const all = allSteps(steps);
     for (const s of all) {
@@ -367,16 +368,34 @@ export default function JourneyPage() {
   const tags = [...new Set(data.contacts.flatMap((c) => c.tags))].sort();
   const audienceCount = data.contacts.filter((c) => c.email && !c.unsubscribed && (!trigger.tag || c.tags.includes(trigger.tag))).length;
   const entryDef = ENTRY.find((x) => x.id === trigger.type);
-  const entryDetail = trigger.type === "form_submitted" ? data.forms.find((f) => f.id === trigger.form)?.name ?? "Any form" : trigger.type === "segment" ? data.segments.find((s) => s.id === trigger.segment)?.name ?? "Choose a segment" : trigger.tag ? `Tag: ${trigger.tag}` : trigger.stage ? stageName(trigger.stage) : trigger.source ?? (trigger.type === "audience" ? "Everyone with an email" : "");
+  const entryDetail = trigger.type === "data_extension" ? data.data_extensions.find((d) => d.id === trigger.de)?.name ?? "Choose a data extension" : trigger.type === "form_submitted" ? data.forms.find((f) => f.id === trigger.form)?.name ?? "Any form" : trigger.type === "segment" ? data.segments.find((s) => s.id === trigger.segment)?.name ?? "Choose a segment" : trigger.tag ? `Tag: ${trigger.tag}` : trigger.stage ? stageName(trigger.stage) : trigger.source ?? (trigger.type === "audience" ? "Everyone with an email" : "");
 
   const entryPanel = (
     <div className="space-y-4">
       <Field label="Entry source type">
         <select className="field" value={trigger.type} onChange={(e) => setEntry(e.target.value as Trigger["type"])}>
-          {["Contacts", "Bookings", "Deals", "Sales visits"].map((g) => <optgroup key={g} label={g}>{ENTRY.filter((x) => x.group === g).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</optgroup>)}
+          {["Data", "Contacts", "Bookings", "Deals", "Sales visits"].map((g) => <optgroup key={g} label={g}>{ENTRY.filter((x) => x.group === g).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</optgroup>)}
         </select>
       </Field>
       <p className="-mt-2 text-[13px] text-muted">{entryDef?.hint}</p>
+      {trigger.type === "data_extension" && (() => {
+        const list = data.data_extensions.filter((d) => d.sendable && d.link);
+        const rows = trigger.de ? data.de_rows.filter((r) => r.de_id === trigger.de).length : 0;
+        const de = data.data_extensions.find((d) => d.id === trigger.de);
+        return (
+          <>
+            <Field label="Data extension">
+              <select className="field" value={trigger.de ?? ""} onChange={(e) => setTrig({ ...trigger, de: e.target.value })}>
+                <option value="" disabled>Choose a sendable data extension…</option>
+                {list.map((d) => <option key={d.id} value={d.id}>{d.name} ({data.de_rows.filter((r) => r.de_id === d.id).length} rows)</option>)}
+              </select>
+              {list.length === 0 && <p className="mt-1.5 text-[13px] text-muted">No sendable data extensions yet. <Link href="/audience?tab=extensions" className="font-semibold text-teal-d hover:underline">Open Contact Builder</Link>, edit a DE and turn on <strong>Sendable</strong>.</p>}
+            </Field>
+            {de && <div className="rounded-xl bg-teal-t px-4 py-3 text-teal-d"><span className="font-display text-2xl font-semibold">{rows}</span> <span className="text-sm font-medium">rows will enter when you activate</span></div>}
+            {de && <p className="text-[13px] text-muted">Rows are matched to contacts on <strong>{de.link!.field}</strong>; new addresses are added to All Subscribers. Merge fields from this DE: {de.fields.map((f) => <code key={f.name} className="mr-1 rounded bg-cloud px-1 text-[12px]">{`{{${f.name}}}`}</code>)}</p>}
+          </>
+        );
+      })()}
       {(trigger.type === "tag_added" || trigger.type === "audience") && (
         <Field label={trigger.type === "audience" ? "Only contacts with this tag (optional)" : "Tag"}>
           <input className="field" list="journey-tags" value={trigger.tag ?? ""} onChange={(e) => setTrig({ ...trigger, tag: e.target.value.toLowerCase().trim() })} placeholder={trigger.type === "audience" ? "Leave empty for everyone" : "e.g. newsletter"} />
@@ -709,7 +728,7 @@ export default function JourneyPage() {
             <div className="rounded-xl bg-rose-t px-4 py-3 text-rose"><div className="font-semibold">Fix these first</div><ul className="mt-1 list-disc pl-5 text-sm">{v.errors.map((p) => <li key={p}>{p}</li>)}</ul></div>
           ) : (
             <dl className="divide-y divide-line rounded-xl border border-line text-sm">
-              {[["Entry source", `${entryDef?.label}${entryDetail ? ` (${entryDetail})` : ""}`], ...(trigger.type === "audience" ? [["Contacts entering now", String(audienceCount)]] : []), ["Activities", `${allSteps(steps).length} (${emailSteps.length} email${emailSteps.length === 1 ? "" : "s"})`], ["Entry mode", reentryLabel], ["Goal", trigger.goal?.length ? `${trigger.goal.length} criteria` : "None"], ["Exit criteria", exit.length ? `${exit.length} criteria` : "None"], ["Version", String(version)]].map(([k, val]) => (
+              {[["Entry source", `${entryDef?.label}${entryDetail ? ` (${entryDetail})` : ""}`], ...(trigger.type === "audience" ? [["Contacts entering now", String(audienceCount)]] : []), ...(trigger.type === "data_extension" ? [["Rows entering now", String(data.de_rows.filter((r) => r.de_id === trigger.de).length)]] : []), ["Activities", `${allSteps(steps).length} (${emailSteps.length} email${emailSteps.length === 1 ? "" : "s"})`], ["Entry mode", reentryLabel], ["Goal", trigger.goal?.length ? `${trigger.goal.length} criteria` : "None"], ["Exit criteria", exit.length ? `${exit.length} criteria` : "None"], ["Version", String(version)]].map(([k, val]) => (
                 <div key={k} className="flex gap-4 px-4 py-2.5"><dt className="w-40 shrink-0 text-muted">{k}</dt><dd className="font-semibold text-ink">{val}</dd></div>
               ))}
             </dl>

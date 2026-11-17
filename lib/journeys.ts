@@ -50,6 +50,7 @@ export const CONTACT_FIELDS: { id: import("./engine/types").ContactField; label:
 
 /* ---------- Entry sources ---------- */
 export const ENTRY: { id: Trigger["type"]; label: string; group: string; hint: string }[] = [
+  { id: "data_extension", label: "Data extension", group: "Data", hint: "Every row of a sendable data extension enters, and rows added later enter too. Each row's fields work as merge fields, e.g. {{FirstName}}." },
   { id: "contact_created", label: "New contact added", group: "Contacts", hint: "Anyone added to your CRM, by hand, import or form." },
   { id: "tag_added", label: "Contact gets a tag", group: "Contacts", hint: "Everyone with this tag enters once, including people who already have it." },
   { id: "form_submitted", label: "Form is submitted", group: "Contacts", hint: "Each time someone fills in the form (or any form)." },

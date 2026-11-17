@@ -2,11 +2,15 @@ export type TriggerType =
   | "lead_created" | "stage_changed" | "visit_booked" | "visit_done" | "visit_no_show" | "quote_sent" | "manual"
   // Contact-based entry sources (journeys)
   | "contact_created" | "tag_added" | "audience" | "segment" | "form_submitted"
+  // Data extension entry: every row of a sendable DE (and rows added later)
+  | "data_extension"
   // Bookings
   | "booking_made" | "booking_checked_in" | "booking_no_show";
 /** source: lead/contact source filter. tag: for tag_added and audience ("" = everyone with an email). */
 export interface Trigger {
   type: TriggerType; stage?: string; source?: string; tag?: string; segment?: string; form?: string; service?: string;
+  /** data_extension entry: the DE's id. */
+  de?: string;
   /** Journey settings. once = a contact can only ever enter once; after_exit = again, but only once they've left; event (default) = once per event. */
   reentry?: "event" | "once" | "after_exit";
   /** Journey goal: people who meet it leave and count as converted. (Exit criteria live on the workflow.) */

@@ -30,4 +30,4 @@ export function mergeVars(deal: Deal | undefined, contact: Contact | undefined, 
     booking_line: booking ? `You can pick a time here: ${booking}` : "Just reply with a day and time that suits you and we'll lock it in.",
   };
 }
-export const render = (text: string, vars: Record<string, string>) => text.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, k: string) => vars[k.toLowerCase()] ?? "");
+export const render = (text: string, vars: Record<string, string>) => text.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_m, k: string) => vars[k.toLowerCase()] ?? "");
