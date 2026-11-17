@@ -22,6 +22,7 @@ export const ACTIVITIES: Activity[] = [
   { key: "split", label: "Decision Split", group: "Flow Control", icon: "split", hint: "Different paths by who they are", make: () => ({ id: uid(), type: "split", paths: [path("Path 1", { cond: { field: "contact.tags", op: "is", value: "vip" } }), path("Remainder", { cond: null })] }) },
   { key: "ab", label: "Random Split", group: "Flow Control", icon: "shuffle", hint: "Split by percentage (A/B test)", make: () => ({ id: uid(), type: "ab", paths: [path("Path 1", { pct: 50 }), path("Path 2", { pct: 50 })] }) },
   { key: "engage", label: "Engagement Split", group: "Flow Control", icon: "send", hint: "Opened or clicked an email?", make: () => ({ id: uid(), type: "engage", ref: "", event: "open", paths: [path("Yes"), path("No")] }) },
+  { key: "exit", label: "Exit Journey", group: "Flow Control", icon: "exit", hint: "The contact leaves the journey here", make: () => ({ id: uid(), type: "exit" }) },
   { key: "join", label: "Join", group: "Flow Control", icon: "merge", hint: "Send people on to another activity", make: () => ({ id: uid(), type: "join", target: "" }) },
   { key: "update", label: "Update Contact", group: "Customer Updates", icon: "useredit", hint: "Set a field on the contact", make: () => ({ id: uid(), type: "update", field: "company", value: "" }) },
   { key: "tag", label: "Add Tag", group: "Customer Updates", icon: "tag", hint: "Label the contact", make: () => ({ id: uid(), type: "tag", tag: "" }) },

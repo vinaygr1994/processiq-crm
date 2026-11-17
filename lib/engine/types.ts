@@ -34,6 +34,8 @@ export type Step =
   | (Base & { type: "sms"; body: string })
   /** WhatsApp: free text inside the 24-hour window, or an approved template (params = merge text, one per {{n}}). */
   | (Base & { type: "whatsapp"; body: string; template?: string; lang?: string; params?: string[] })
+  /** Exit: the contact leaves the journey here (e.g. at the end of a decision split path). */
+  | (Base & { type: "exit" })
   /** Join: send people on to another activity in this journey. */
   | (Base & { type: "join"; target: string })
   /** Update contact: set one field on the contact. */

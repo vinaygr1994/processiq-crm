@@ -252,6 +252,7 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
         }
         pos = next; nextAt = dueAt; break;
       }
+      if (step.type === "exit") { status = "stopped"; note = "Left at an Exit activity"; break; }
       if (step.type === "join") {
         const to = posOf(wf.steps, step.target);
         if (!to || to.join(".") === pos.join(".")) { pos = next; continue; }

@@ -46,6 +46,7 @@ function summaryOf(s: Step, steps: Step[], stageName: (id: string) => string): s
     case "split": return `${s.paths.length} paths`;
     case "ab": return s.paths.map((p) => `${p.pct ?? 0}%`).join(" / ");
     case "engage": return `${s.event === "click" ? "Clicked" : "Opened"}: ${(findStep(steps, s.ref) as { subject?: string } | null)?.subject || "choose an email"}`;
+    case "exit": return "Leaves the journey";
     case "join": { const t = findStep(steps, s.target); return t ? `Go to ${activityOf(t).label}` : "Choose where to go"; }
     case "update": { const f = CONTACT_FIELDS.find((x) => x.id === s.field); return `${f?.label ?? s.field} = ${s.value || "…"}`; }
     case "notify": case "log": return s.message || "…";
@@ -294,6 +295,13 @@ export default function JourneyPage() {
   const stats = journeyStats(runs);
   const status = saved.active ? "Running" : runs.length ? "Paused" : "Draft";
   const version = trigger.version ?? 1;
+  // In a data extension journey, a new Decision Split starts on the DE's yes/no field (e.g. Meeting_Booked is True).
+  const smart = (st: Step): Step => {
+    const de = trigger.type === "data_extension" ? data.data_extensions.find((d) => d.id === trigger.de) : undefined;
+    const f = de?.fields.find((x) => x.type === "boolean");
+    if (st.type !== "split" || !f) return st;
+    return { ...st, paths: [{ ...st.paths[0], label: `${f.name.replace(/_/g, " ")}: yes`, cond: { field: `de.${f.name}`, op: "is", value: "true" } }, { ...st.paths[1], label: "Everyone else" }] };
+  };
   const insert = (lp: ListPath, index: number, s: Step) => { edit(mapList(steps, lp, (l) => [...l.slice(0, index), s, ...l.slice(index)])); setSel(s.id); };
   const move = (sid: string, lp: ListPath, index: number) => {
     if (lp.some(([x]) => x === sid)) return toast("A split can't be moved inside its own paths");
@@ -308,7 +316,7 @@ export default function JourneyPage() {
   const onDrop = (e: DragEvent, lp: ListPath, index: number) => {
     e.preventDefault(); endDrag();
     const d = e.dataTransfer.getData("text/plain");
-    if (d.startsWith("act:")) { const a = ACTIVITIES.find((x) => x.key === d.slice(4)); if (a) insert(lp, index, a.make()); }
+    if (d.startsWith("act:")) { const a = ACTIVITIES.find((x) => x.key === d.slice(4)); if (a) insert(lp, index, smart(a.make())); }
     else if (d.startsWith("mv:")) move(d.slice(3), lp, index);
     else if (d.startsWith("entry:")) toast("Drop entry sources on the Entry Source at the start of the journey");
   };
@@ -608,7 +616,7 @@ export default function JourneyPage() {
                 const list = ACTIVITIES.filter((a) => a.group === g && match(a.label));
                 return list.length ? (
                   <Section key={g} title={g}>
-                    {list.map((a) => <Tile key={a.key} icon={a.icon} label={a.label} tone={GROUP_TONE[a.group]} payload={"act:" + a.key} onClick={() => insert([], steps.length, a.make())} title={`${a.hint}. Drag onto the canvas, or click to add at the end.`} onStart={startDrag} onEnd={endDrag} />)}
+                    {list.map((a) => <Tile key={a.key} icon={a.icon} label={a.label} tone={GROUP_TONE[a.group]} payload={"act:" + a.key} onClick={() => insert([], steps.length, smart(a.make()))} title={`${a.hint}. Drag onto the canvas, or click to add at the end.`} onStart={startDrag} onEnd={endDrag} />)}
                   </Section>
                 ) : null;
               })}
@@ -680,7 +688,7 @@ export default function JourneyPage() {
               <div className="mb-2 text-[13px] font-bold text-ink">{g}</div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {ACTIVITIES.filter((a) => a.group === g).map((a) => (
-                  <button key={a.key} type="button" onClick={() => { insert(adding.lp, adding.index, a.make()); setAdding(null); }} className="flex items-start gap-2 rounded-xl border border-line p-2.5 text-left hover:border-teal">
+                  <button key={a.key} type="button" onClick={() => { insert(adding.lp, adding.index, smart(a.make())); setAdding(null); }} className="flex items-start gap-2 rounded-xl border border-line p-2.5 text-left hover:border-teal">
                     <span className="grid size-8 shrink-0 place-items-center rounded-full text-white" style={{ background: GROUP_SOLID[a.group] }}><Icon name={a.icon} className="size-4" /></span>
                     <span><span className="block text-sm font-semibold text-ink">{a.label}</span><span className="block text-[12px] text-muted">{a.hint}</span></span>
                   </button>
