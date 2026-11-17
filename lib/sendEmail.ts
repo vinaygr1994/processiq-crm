@@ -53,3 +53,11 @@ export const audienceText = (a: string) => (a.startsWith("label:") ? a.slice(6) 
 
 /** A readable default name for a send: merge fields become [First name] etc. */
 export const sendName = (subject: string) => subject.trim().replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, k: string) => `[${k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}]`);
+
+/** Sends a test to yourself and logs it (status "test") so opens and clicks show up in Activity. */
+export async function sendTestEmail(o: { to: string; subject: string; body: string; design?: unknown; vars?: Record<string, string> }, add: Crm["add"]) {
+  const trackId = crypto.randomUUID();
+  const r = await callApi<{ status: "sent" | "demo" }>("/api/email/send", { to: o.to, subject: o.subject, body: o.body, design: o.design, test: true, vars: o.vars, trackId });
+  await add("emails", { id: trackId, contact_id: null, to_email: o.to, subject: `[Test] ${o.subject}`, body: o.body, status: r.status === "demo" ? "demo" : "test", error: "", campaign_id: null } as never);
+  return r;
+}

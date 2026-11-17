@@ -7,7 +7,7 @@ import { Button, Card } from "@/components/ui";
 import { EmailEditor } from "@/components/EmailEditor";
 import { useCrm } from "@/lib/store";
 import { useStatus } from "@/lib/status";
-import { callApi } from "@/lib/api";
+import { sendTestEmail } from "@/lib/sendEmail";
 import { fill } from "@/lib/format";
 import { KIND, foldersOf, kindOf } from "@/lib/content";
 import { emailVars, parseDesign, plainOf, renderDesign } from "@/lib/emailDesign";
@@ -38,7 +38,7 @@ function checks(subject: string, body: string, kind: string): { level: "error" |
 
 export default function ContentEditorPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, ready, update, toast, settings, userEmail } = useCrm();
+  const { data, ready, update, add, toast, settings, userEmail } = useCrm();
   const status = useStatus();
   const saved = data.templates.find((t) => t.id === id);
   const [name, setName] = useState("");
@@ -88,8 +88,8 @@ export default function ContentEditorPage() {
     setTesting(true);
     try {
       const sample = { name: contact?.name ?? "Sarah Collins", company: contact?.company ?? "" };
-      await callApi("/api/email/send", { to: userEmail, subject: fill(subject, sample), body: design ? plainOf(body, vars) : fill(body, sample), design: design ?? undefined, test: true, vars });
-      toast(`Test sent to ${userEmail}, personalised as ${contact?.name ?? "a sample contact"}`);
+      await sendTestEmail({ to: userEmail, subject: fill(subject, sample), body: design ? plainOf(body, vars) : fill(body, sample), design: design ?? undefined, vars }, add);
+      toast(`Test sent to ${userEmail}, personalised as ${contact?.name ?? "a sample contact"}. Opens and clicks show in Email Studio → Activity.`);
     } catch (e) { toast((e as Error).message, "error"); }
     setTesting(false);
   }

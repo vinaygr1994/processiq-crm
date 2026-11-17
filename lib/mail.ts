@@ -59,7 +59,7 @@ export async function sendMail(o: MailIn): Promise<MailOut> {
       html += `<hr style="border:0;border-top:1px solid #e4e8f0;margin:28px 0 14px"><div style="font:12.5px/1.5 Arial,sans-serif;color:#6b7690">${esc(s?.business_name ?? "")} · ${esc(s?.address ?? "")}<br><a href="${unsubUrl}" style="color:#6b7690">Unsubscribe</a></div>`;
     }
   }
-  if (o.trackId && !o.test && process.env.SUPABASE_SERVICE_ROLE_KEY) html = addTracking(html, o.trackId, o.baseUrl, unsubUrl);
+  if (o.trackId && process.env.SUPABASE_SERVICE_ROLE_KEY) html = addTracking(html, o.trackId, o.baseUrl, unsubUrl);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from, to: [o.to], subject, text: plain, html, headers, ...(s?.reply_to ? { reply_to: s.reply_to } : {}) }),

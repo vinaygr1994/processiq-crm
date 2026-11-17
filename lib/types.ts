@@ -115,7 +115,8 @@ export interface EmailLog {
   to_email: string;
   subject: string;
   body: string;
-  status: "sent" | "failed" | "demo";
+  /** test = a "Send me a test" email: logged and tracked, but not part of any send's stats. */
+  status: "sent" | "failed" | "demo" | "test";
   error: string;
   campaign_id: string | null;
   /** Tracking (needs migration 006). */

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AiButton, Button, Field } from "./ui";
 import { useCrm } from "@/lib/store";
 import { useStatus } from "@/lib/status";
-import { callApi } from "@/lib/api";
+import { sendTestEmail } from "@/lib/sendEmail";
 import { aiDraftEmail } from "@/lib/ai";
 import { fill } from "@/lib/format";
 import { blocksOf, isMessage, kindOf, uploadImage } from "@/lib/content";
@@ -259,7 +259,7 @@ interface Props {
 type Side = "add" | "edit" | "style";
 
 export function EmailEditor({ subject, body, onSubject, onBody, contact, aiContact, aiRecent = [], goals = [], aiPlaceholder = "What's this email about?", mode = "message", tall = false }: Props) {
-  const { data, settings, userEmail, toast } = useCrm();
+  const { data, settings, userEmail, toast, add } = useCrm();
   const status = useStatus();
   const design = useMemo(() => parseDesign(body), [body]);
   const [sel, setSel] = useState<string | null>(null);
@@ -403,8 +403,8 @@ export function EmailEditor({ subject, body, onSubject, onBody, contact, aiConta
     setTesting(true);
     try {
       const sample = { name: contact?.name ?? SAMPLE.name, company: contact?.company ?? SAMPLE.company };
-      await callApi("/api/email/send", { to: userEmail, subject: fill(subject, sample), body: design ? plainOf(body, vars) : fill(body, sample), design: design ?? undefined, test: true });
-      toast(`Test sent to ${userEmail}`);
+      await sendTestEmail({ to: userEmail, subject: fill(subject, sample), body: design ? plainOf(body, vars) : fill(body, sample), design: design ?? undefined }, add);
+      toast(`Test sent to ${userEmail}. Opens and clicks show in Email Studio → Activity.`);
     } catch (e) { setNote((e as Error).message); }
     setTesting(false);
   }

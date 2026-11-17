@@ -578,6 +578,11 @@ alter table public.crm_meta enable row level security;
 drop policy if exists "crm_meta_read" on public.crm_meta;
 create policy "crm_meta_read" on public.crm_meta for select to authenticated using (true);
 
+-- ===== 019_test_sends.sql =====
+-- Test sends are logged (and tracked) too, as status 'test', so you can check opens and clicks before a real send.
+alter table public.emails drop constraint if exists emails_status_check;
+alter table public.emails add constraint emails_status_check check (status in ('sent','failed','demo','test'));
+
 -- KEEP THIS LAST. When you add a section above, bump the number here AND SCHEMA_VERSION in lib/schemaVersion.ts.
-insert into public.crm_meta (key, value, updated_at) values ('schema_version', '18', now())
+insert into public.crm_meta (key, value, updated_at) values ('schema_version', '19', now())
   on conflict (key) do update set value = excluded.value, updated_at = now();

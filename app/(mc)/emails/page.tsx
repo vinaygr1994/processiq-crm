@@ -39,7 +39,7 @@ function TemplateModal({ t, onClose }: { t?: Template; onClose: () => void }) {
 }
 
 function EmailPageInner() {
-  const { data, remove, update } = useCrm();
+  const { data, remove, update, reload } = useCrm();
   const params = useSearchParams();
   const router = useRouter();
   const tab: Tab = ["campaigns", "templates", "sent"].includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "campaigns";
@@ -89,16 +89,17 @@ function EmailPageInner() {
           </Card>))}</div>
       ))}
 
+      {tab === "sent" && status && !status.demo && !status.unsubscribe && <Card className="!border-[#f3c1c1] !bg-[#fff6f6] text-sm text-[#8a1f1f]"><strong>Open and click tracking is off.</strong> Add SUPABASE_SERVICE_ROLE_KEY in Vercel → Settings → Environment Variables, then redeploy.</Card>}
       {tab === "sent" && (data.emails.length === 0 ? (
         <Card><Empty icon="send" title="Nothing sent yet" text="Every email you send from a contact or a campaign is logged here." /></Card>
       ) : (
-        <Card className="!p-0 overflow-hidden"><ul className="divide-y divide-line">{data.emails.slice(0, 100).map((m) => {
+        <Card className="!p-0 overflow-hidden"><div className="flex items-center justify-between border-b border-line px-5 py-2.5 text-[13px] text-muted"><span>Latest 100 emails. Opens are recorded when the email&apos;s images load; some apps block or pre-load them.</span><button type="button" onClick={() => reload()} className="font-semibold text-teal-d hover:underline">Refresh</button></div><ul className="divide-y divide-line">{data.emails.slice(0, 100).map((m) => {
           const c = m.contact_id ? contacts.get(m.contact_id) : null;
           return (
             <li key={m.id} className="flex items-center gap-4 px-5 py-3.5">
               <div className="min-w-0 flex-1"><div className="truncate font-semibold text-ink">{m.subject}</div><div className="truncate text-sm text-muted">To {c?.name ?? m.to_email}{m.error ? ` · ${m.error}` : ""}</div></div>
               {m.clicked_at ? <Badge tone="iris">Clicked</Badge> : m.opened_at ? <Badge tone="teal">Opened</Badge> : null}
-              <Badge tone={m.status === "sent" ? "green" : m.status === "demo" ? "sun" : "rose"}>{m.status === "demo" ? "Demo" : m.status === "sent" ? "Sent" : "Failed"}</Badge>
+              <Badge tone={m.status === "sent" ? "green" : m.status === "test" ? "gray" : m.status === "demo" ? "sun" : "rose"}>{m.status === "demo" ? "Demo" : m.status === "sent" ? "Sent" : m.status === "test" ? "Test" : "Failed"}</Badge>
               <span className="hidden w-24 text-right text-[13px] text-muted sm:block">{timeAgo(m.created_at)}</span>
             </li>);
         })}</ul></Card>
