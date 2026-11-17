@@ -349,7 +349,7 @@ export default function JourneyPage() {
         else if (at && posKey(to) <= posKey(at) && !all.some((x) => x.type === "wait")) errors.push("Join: going back to an earlier activity needs a Wait in the loop, or people would loop forever.");
       }
     }
-    if (!exit.length && !(trigger.goal?.length)) warnings.push("No goal or exit criteria. People stay until they reach the end of the journey.");
+    if (!exit.length && !(trigger.goal?.length) && !all.some((x) => x.type === "exit")) warnings.push("No goal or exit criteria. People stay until they reach the end of the journey.");
     return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] };
   }
   const v = validate();
