@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { Button, Card, Field, Modal } from "@/components/ui";
-import { CondEditor, StepBody } from "@/components/WorkflowEditor";
+import { CondEditor, DeFieldsContext, StepBody } from "@/components/WorkflowEditor";
 import { EmailEditor } from "@/components/EmailEditor";
 import { useCrm } from "@/lib/store";
 import { useStages } from "@/lib/useStages";
@@ -430,6 +430,14 @@ export default function JourneyPage() {
       const d = parseDesign(s.body), st = emailStats(emails, s.id);
       return (
         <div className="space-y-3">
+          {(() => { const lib = data.templates.filter((t) => (t.kind ?? "email") === "email" || t.kind === "template"); return lib.length > 0 && (
+            <Field label="Email from Content Builder">
+              <select className="field" value="" onChange={(e) => { const t = lib.find((x) => x.id === e.target.value); if (t) { setStep({ ...s, subject: t.subject, body: t.body }); toast(`“${t.name}” added to this activity`); } }}>
+                <option value="" disabled>Choose an email to use…</option>
+                {lib.map((t) => <option key={t.id} value={t.id}>{t.name}{t.subject ? ` · ${t.subject.slice(0, 40)}` : ""}</option>)}
+              </select>
+            </Field>
+          ); })()}
           <Field label="Subject line"><input className="field" value={s.subject} onChange={(e) => setStep({ ...s, subject: e.target.value })} placeholder="Subject line" /></Field>
           <div className={`overflow-hidden rounded-xl border border-line bg-cloud ${d ? "h-80" : ""}`}>
             {d ? <iframe title="Email preview" sandbox="" className="pointer-events-none h-[640px] w-[200%] origin-top-left scale-50 border-0" srcDoc={renderDesign(d, emailVars({ name: "Sarah Collins", company: "" }, settings), { business: settings?.business_name, address: settings?.address, unsubscribeUrl: s.marketing ? "#" : undefined }).html} />
@@ -551,7 +559,9 @@ export default function JourneyPage() {
   const statusTone = status === "Running" ? "bg-[#e3f6ec] text-[#16794a]" : status === "Paused" ? "bg-sun-t text-[#8a5200]" : "bg-cloud text-body";
   const reentryLabel = { event: "Re-entry anytime", once: "No re-entry", after_exit: "Re-entry only after exiting" }[trigger.reentry ?? "event"];
 
+  const entryDe = trigger.type === "data_extension" ? data.data_extensions.find((d) => d.id === trigger.de) : undefined;
   return (
+    <DeFieldsContext.Provider value={entryDe?.fields ?? []}>
     <div className="fixed inset-0 z-40 flex flex-col bg-white">
       {/* Header */}
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-3 sm:px-4">
@@ -691,7 +701,8 @@ export default function JourneyPage() {
       {dialog === "exit" && (
         <Modal title="Exit Criteria" onClose={() => setDialog(null)}>
           <p className="mb-4 text-sm text-muted">Contacts are removed from the journey as soon as they match any of these, without counting as converted. For example: they unsubscribed, or they became a customer another way.</p>
-          <CondList conds={exit} onChange={(c) => { setExit(c); setDirty(true); }} empty="No exit criteria. Contacts stay until they reach the end or meet the goal." add={{ field: "contact.unsubscribed", op: "is", value: "true" }} />
+          <CondList conds={exit} onChange={(c) => { setExit(c); setDirty(true); }} empty="No exit criteria. Contacts stay until they reach the end or meet the goal." add={entryDe?.fields.length ? { field: `de.${(entryDe.fields.find((f) => f.type === "boolean") ?? entryDe.fields[0]).name}`, op: "is", value: "true" } : { field: "contact.unsubscribed", op: "is", value: "true" }} />
+          {entryDe && <p className="mt-3 text-[13px] text-muted">Fields from <strong>{entryDe.name}</strong> are at the top of the list. Exit criteria are checked before every step, so a contact leaves as soon as their row changes, e.g. Meeting Booked becomes True.</p>}
           <div className="mt-5 flex justify-end"><Button onClick={() => setDialog(null)}>Done</Button></div>
         </Modal>
       )}
@@ -747,5 +758,6 @@ export default function JourneyPage() {
         </Modal>
       )}
     </div>
+    </DeFieldsContext.Provider>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { Icon } from "./Icon";
 import { Field } from "./ui";
 import { MERGE_TAGS } from "@/lib/engine/merge";
@@ -8,6 +8,7 @@ import { useCrm } from "@/lib/store";
 import { STAGES } from "@/lib/stages";
 import { customTag } from "@/lib/engine/merge";
 import type { Cond, CondField, CondOp, Step, Trigger, TriggerType } from "@/lib/engine/types";
+import type { DeField } from "@/lib/types";
 import { uid } from "@/lib/engine/types";
 
 export const TRIGGERS: { id: TriggerType; label: string }[] = [
@@ -44,13 +45,22 @@ const OPS: { id: CondOp; label: string }[] = [
   { id: "is", label: "is" }, { id: "is_not", label: "is not" }, { id: "contains", label: "contains" }, { id: "gt", label: "is more than" }, { id: "lt", label: "is less than" }, { id: "empty", label: "is empty" }, { id: "not_empty", label: "is not empty" },
 ];
 
+/** Fields of the journey's entry data extension, offered as conditions ("de.<field>"). */
+export const DeFieldsContext = createContext<DeField[]>([]);
+
 export function CondEditor({ cond, onChange }: { cond: Cond; onChange: (c: Cond) => void }) {
   const { stages: STAGES } = useStages();
+  const deFields = useContext(DeFieldsContext);
   const noVal = cond.op === "empty" || cond.op === "not_empty";
-  const opts = cond.field === "deal.stage" ? STAGES.map((s) => [s.id, s.label]) : cond.field === "visit.status" ? [["scheduled", "Scheduled"], ["done", "Done"], ["no_show", "No-show"], ["cancelled", "Cancelled"]] : cond.field === "visit.priority" ? [["hot", "Hot"], ["warm", "Warm"], ["cold", "Cold"]] : null;
+  const deF = cond.field.startsWith("de.") ? deFields.find((f) => `de.${f.name}` === cond.field) : null;
+  const opts = deF?.type === "boolean" ? [["true", "True"], ["false", "False"]] : cond.field === "deal.stage" ? STAGES.map((s) => [s.id, s.label]) : cond.field === "visit.status" ? [["scheduled", "Scheduled"], ["done", "Done"], ["no_show", "No-show"], ["cancelled", "Cancelled"]] : cond.field === "visit.priority" ? [["hot", "Hot"], ["warm", "Warm"], ["cold", "Cold"]] : null;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <select className="field !w-auto !py-2" value={cond.field} onChange={(e) => onChange({ ...cond, field: e.target.value as CondField, value: "" })} aria-label="Field">{FIELDS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select>
+      <select className="field !w-auto !py-2" value={cond.field} onChange={(e) => onChange({ ...cond, field: e.target.value as CondField, value: "" })} aria-label="Field">
+        {deFields.length > 0 && <optgroup label="Entry data extension">{deFields.map((f) => <option key={f.name} value={`de.${f.name}`}>{f.name}</option>)}</optgroup>}
+        {deFields.length > 0 ? <optgroup label="Contact and deal">{FIELDS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</optgroup> : FIELDS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+        {cond.field.startsWith("de.") && !deF && <option value={cond.field}>{cond.field.slice(3)} (not in the entry DE)</option>}
+      </select>
       <select className="field !w-auto !py-2" value={cond.op} onChange={(e) => onChange({ ...cond, op: e.target.value as CondOp })} aria-label="Condition">{OPS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select>
       {!noVal && (opts
         ? <select className="field !w-auto !py-2" value={cond.value ?? ""} onChange={(e) => onChange({ ...cond, value: e.target.value })} aria-label="Value"><option value="">Choose…</option>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>

@@ -74,8 +74,25 @@ export function posOf(steps: Step[], id: string, prefix: number[] = []): number[
 }
 
 /* ---------- Conditions ---------- */
-export function evalCond(c: Cond, deal?: Deal, contact?: Contact, visit?: Visit): boolean {
-  const [obj, key] = c.field.split(".");
+/** de: the contact's row in the journey's entry data extension (keys as rowVars makes them). */
+export function evalCond(c: Cond, deal?: Deal, contact?: Contact, visit?: Visit, de?: Record<string, string>): boolean {
+  const dot = c.field.indexOf("."), obj = c.field.slice(0, dot), key = c.field.slice(dot + 1);
+  if (obj === "de") {
+    const raw = de?.[key.toLowerCase().replace(/[^a-z0-9_]/g, "_")] ?? "";
+    const v = (c.value ?? "").trim().toLowerCase(), r = raw.trim().toLowerCase();
+    const bool = (x: string) => (["true", "yes", "y", "1"].includes(x) ? "true" : ["false", "no", "n", "0", ""].includes(x) ? "false" : x);
+    const isBool = v === "true" || v === "false";
+    const a = isBool ? bool(r) : r;
+    switch (c.op) {
+      case "is": return a === v;
+      case "is_not": return a !== v;
+      case "contains": return r.includes(v);
+      case "gt": return Number(raw) > Number(c.value);
+      case "lt": return Number(raw) < Number(c.value);
+      case "empty": return !r;
+      case "not_empty": return !!r;
+    }
+  }
   const src = (obj === "deal" ? deal : obj === "contact" ? contact : visit) as unknown as Record<string, unknown> | undefined;
   const raw = src?.[key];
   const v = c.value ?? "";
@@ -204,11 +221,11 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     for (let guard = 0; guard < 60; guard++) {
       const deal = byDeal(run.deal_id) as Deal | undefined, contact = byContact(deal?.contact_id ?? run.contact_id) as Contact | undefined, visit = byVisit(run.visit_id) as Visit | undefined;
       if (run.deal_id && !deal) { status = "stopped"; note = "The job was deleted"; break; }
-      if (wf.trigger.goal?.length && wf.trigger.goal.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = "Reached the goal"; break; }
-      if (wf.exit.some((c) => evalCond(c, deal, contact, visit))) { status = "stopped"; note = wf.trigger.goal ? "Met exit criteria" : "Reached the goal"; break; }
+      const deVars = contact?.email ? deVarsByWf.get(wf.id)?.get(contact.email.toLowerCase()) : undefined;
+      if (wf.trigger.goal?.length && wf.trigger.goal.some((c) => evalCond(c, deal, contact, visit, deVars))) { status = "stopped"; note = "Reached the goal"; break; }
+      if (wf.exit.some((c) => evalCond(c, deal, contact, visit, deVars))) { status = "stopped"; note = wf.trigger.goal ? "Met exit criteria" : "Reached the goal"; break; }
       const step = stepAt(wf.steps, pos);
       if (!step) { status = "done"; break; }
-      const deVars = contact?.email ? deVarsByWf.get(wf.id)?.get(contact.email.toLowerCase()) ?? deVarsByWf.get(wf.id)?.get(contact.phone ?? "") : undefined;
       const vars = { ...mergeVars(deal, contact, visit, settings), ...(deVars ?? {}) };
       sum.steps++;
       let next = advance(wf.steps, pos);
@@ -242,8 +259,8 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
       }
       if (step.type === "if" || step.type === "split" || step.type === "ab" || step.type === "engage") {
         let k = 0;
-        if (step.type === "if") k = evalCond(step.cond, deal, contact, visit) ? 0 : 1;
-        else if (step.type === "split") { k = step.paths.findIndex((p) => !p.cond || evalCond(p.cond, deal, contact, visit)); if (k < 0) k = step.paths.length; }
+        if (step.type === "if") k = evalCond(step.cond, deal, contact, visit, deVars) ? 0 : 1;
+        else if (step.type === "split") { k = step.paths.findIndex((p) => !p.cond || evalCond(p.cond, deal, contact, visit, deVars)); if (k < 0) k = step.paths.length; }
         else if (step.type === "ab") { const b = bucket(run.id + step.id); let acc = 0; k = step.paths.length - 1; for (let i = 0; i < step.paths.length; i++) { acc += step.paths[i].pct ?? 0; if (b < acc) { k = i; break; } } }
         else {
           const sent = emails.filter((m) => m.run_id === run.id && m.step_id === step.ref);

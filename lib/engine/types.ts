@@ -20,7 +20,9 @@ export interface Trigger {
 }
 
 export type ContactField = "company" | "source" | "owner" | "unsubscribed" | "sms_opt_out";
-export type CondField = "deal.stage" | "deal.source" | "deal.project" | "deal.value" | "deal.rep" | "deal.budget" | "contact.email" | "contact.phone" | "contact.tags" | "contact.company" | "contact.source" | "contact.unsubscribed" | "visit.status" | "visit.priority";
+export type CondField = "deal.stage" | "deal.source" | "deal.project" | "deal.value" | "deal.rep" | "deal.budget" | "contact.email" | "contact.phone" | "contact.tags" | "contact.company" | "contact.source" | "contact.unsubscribed" | "visit.status" | "visit.priority"
+  /** A field of the journey's entry data extension, e.g. "de.Meeting Booked". */
+  | `de.${string}`;
 export type CondOp = "is" | "is_not" | "contains" | "gt" | "lt" | "empty" | "not_empty";
 export interface Cond { field: CondField; op: CondOp; value?: string }
 
