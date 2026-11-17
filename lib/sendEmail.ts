@@ -3,13 +3,15 @@ import { callApi } from "./api";
 import { fill } from "./format";
 import { emailVars, parseDesign, plainOf } from "./emailDesign";
 import type { Contact, Settings } from "./types";
+import { fillVars } from "./deSend";
 import type { useCrm } from "./store";
 
 type Crm = ReturnType<typeof useCrm>;
 
 export interface SendJob {
   name: string; subject: string; body: string;
-  recipients: Contact[];
+  /** vars: extra merge fields, e.g. the data extension row's fields. */
+  recipients: (Contact & { vars?: Record<string, string> })[];
   /** Marketing adds the unsubscribe link and address. One-to-one reads like a personal email. */
   marketing: boolean;
   /** Shown in the sends list, e.g. "List: vip" or "Sarah Collins". */
@@ -27,11 +29,12 @@ export async function runSend(job: SendJob, crm: Pick<Crm, "add" | "update">, se
   const sig = settings?.signature?.trim();
   let ok = 0, bad = 0, demo = false;
   for (const c of job.recipients) {
-    const subject = fill(job.subject, c);
-    const text = design ? plainOf(job.body, emailVars(c, settings)) : fill(job.body.trimEnd(), c) + (!job.marketing && sig ? `\n\n${sig}` : "");
+    const v = c.vars ?? {};
+    const subject = fill(fillVars(job.subject, v), c);
+    const text = design ? plainOf(job.body, { ...emailVars(c, settings), ...v }) : fill(fillVars(job.body.trimEnd(), v), c) + (!job.marketing && sig ? `\n\n${sig}` : "");
     const trackId = crypto.randomUUID();
     try {
-      const r = await callApi<{ status: "sent" | "demo" }>("/api/email/send", { to: c.email, subject, body: text, design: design ?? undefined, contactId: c.id, marketing: job.marketing, trackId });
+      const r = await callApi<{ status: "sent" | "demo" }>("/api/email/send", { to: c.email, subject, body: text, design: design ?? undefined, contactId: c.id, marketing: job.marketing, trackId, vars: c.vars });
       if (r.status === "demo") demo = true;
       await add("emails", { id: trackId, contact_id: c.id, to_email: c.email, subject, body: text, status: r.status, error: "", campaign_id: camp.id } as never);
       ok++;

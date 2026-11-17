@@ -12,12 +12,15 @@ import { emailVars, parseDesign, renderDesign } from "@/lib/emailDesign";
 import { runSend, sendName } from "@/lib/sendEmail";
 import { SEG, membersOf, segmentMembers } from "@/lib/segments";
 import { useSegCtx } from "@/components/SegmentBuilder";
+import { DE, canSend, deEmails, deMembers, newContact } from "@/lib/deSend";
 import type { Contact } from "@/lib/types";
 
-type Mode = "one" | "pick" | "list" | "all";
+type Mode = "de" | "pick" | "list" | "all";
+/** A recipient: a contact plus merge fields from its data extension row. New = not a contact yet (added at send time). */
+type Rcpt = Contact & { vars?: Record<string, string>; isNew?: boolean };
 const MODES: { id: Mode; title: string; text: string; icon: string }[] = [
-  { id: "one", title: "One person", text: "A single contact", icon: "users" },
-  { id: "pick", title: "Selected people", text: "Pick a few contacts", icon: "check" },
+  { id: "de", title: "Data extensions", text: "Rows of one or more sendable DEs", icon: "layers" },
+  { id: "pick", title: "Selected contacts", text: "Pick contacts by hand", icon: "check" },
   { id: "list", title: "Lists", text: "Everyone on one or more lists", icon: "tag" },
   { id: "all", title: "Everyone", text: "All contacts with an email", icon: "send" },
 ];
@@ -25,6 +28,39 @@ const STEPS = ["Recipients", "Content", "Review and send"];
 const clock = () => Date.now();
 /** A timestamp as the value a datetime-local input expects, in the viewer's time zone. */
 const localInput = (ms: number) => new Date(ms - new Date(ms).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+
+function DePicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const { data } = useCrm();
+  const [q, setQ] = useState("");
+  const count = (id: string) => data.de_rows.filter((r) => r.de_id === id).length;
+  const list = data.data_extensions.filter((d) => !q.trim() || d.name.toLowerCase().includes(q.trim().toLowerCase()) || d.external_key.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => Number(canSend(b)) - Number(canSend(a)) || a.name.localeCompare(b.name));
+  if (!data.data_extensions.length) return <p className="rounded-2xl bg-cloud px-4 py-3 text-sm text-muted">No data extensions yet. <Link href="/audience?tab=extensions" className="font-semibold text-teal-d hover:underline">Create one in Contact Builder</Link> and mark it <strong>Sendable</strong>.</p>;
+  return (
+    <div className="space-y-3">
+      <div className="text-sm font-semibold text-ink">Targeted data extensions</div>
+      <div className="relative"><Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted" /><input className="field !pl-10" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search data extensions" aria-label="Search data extensions" /></div>
+      <ul className="max-h-72 divide-y divide-line overflow-y-auto rounded-2xl border border-line">
+        {list.map((d) => {
+          const ok = canSend(d), on = value.includes(d.id);
+          return (
+            <li key={d.id}>
+              <button type="button" disabled={!ok} onClick={() => onChange(on ? value.filter((x) => x !== d.id) : [...value, d.id])} aria-pressed={on}
+                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${ok ? "hover:bg-cloud" : "cursor-not-allowed opacity-55"} ${on ? "bg-teal-t/40" : ""}`}>
+                <span className={`grid size-5 shrink-0 place-items-center rounded-md border-2 ${on ? "border-teal bg-teal text-white" : "border-line"}`}>{on && <Icon name="check" className="size-3" />}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-ink">{d.name}</span>
+                  <span className="block truncate text-[12.5px] text-muted">{ok ? `Send relationship: ${d.link!.field} → contact ${d.link!.to === "id" ? "ID" : d.link!.to}` : "Not sendable. Open it in Contact Builder → Edit properties → Sendable."}{d.folder ? ` · ${d.folder}` : ""}</span>
+                </span>
+                <span className="shrink-0 text-[13px] font-semibold text-muted">{count(d.id).toLocaleString()} rows</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 function ContactPicker({ multiple, value, onChange }: { multiple: boolean; value: string[]; onChange: (ids: string[]) => void }) {
   const { data } = useCrm();
@@ -84,8 +120,9 @@ function SendWizard() {
   const router = useRouter();
   const params = useSearchParams();
   const [step, setStep] = useState(0);
-  const [mode, setMode] = useState<Mode>("one");
+  const [mode, setMode] = useState<Mode>("de");
   const [ids, setIds] = useState<string[]>([]);
+  const [des, setDes] = useState<string[]>([]);
   const [lists, setLists] = useState<string[]>([]);
   const [exclude, setExclude] = useState<string[]>([]);
   const [subject, setSubject] = useState("");
@@ -98,11 +135,12 @@ function SendWizard() {
   const [minAt] = useState(() => localInput(clock()));
   const [at, setAt] = useState(() => { const d = new Date(clock() + 86_400_000); d.setHours(9, 0, 0, 0); return localInput(d.getTime()); });
 
-  // Prefill from links: ?to=<contact id>, ?list=<tag>, ?template=<id>
+  // Prefill from links: ?de=<data extension id>, ?to=<contact id>, ?list=<tag>, ?template=<id>
   useEffect(() => {
-    const to = params.get("to"), list = params.get("list"), tpl = params.get("template");
+    const to = params.get("to"), list = params.get("list"), tpl = params.get("template"), de = params.get("de");
     /* eslint-disable react-hooks/set-state-in-effect -- one-time prefill from the link */
-    if (to && data.contacts.some((c) => c.id === to)) { setMode("one"); setIds([to]); setKind("personal"); }
+    if (de && data.data_extensions.some((d) => d.id === de)) { setMode("de"); setDes([de]); setKind("marketing"); }
+    if (to && data.contacts.some((c) => c.id === to)) { setMode("pick"); setIds([to]); setKind("personal"); }
     if (list) { setMode("list"); setLists([list]); }
     const t = tpl ? data.templates.find((x) => x.id === tpl) : null;
     if (t) { setSubject(t.subject); setBody(t.body); }
@@ -117,29 +155,45 @@ function SendWizard() {
     const segs = data.segments.map((s) => ({ key: SEG + s.id, label: s.name, count: segmentMembers(data.contacts, s, x).length, seg: true }));
     return [...segs, ...tags];
   }, [data.contacts, data.segments, x]);
-  const labelOf = (k: string) => listCounts.find((o) => o.key === k)?.label ?? k;
+  // Exclusions can be lists, segments or data extensions (like SFMC exclusion DEs).
+  const excludeOpts: ListOpt[] = useMemo(() => [
+    ...data.data_extensions.filter(canSend).map((d) => ({ key: DE + d.id, label: d.name, count: data.de_rows.filter((r) => r.de_id === d.id).length, seg: false })),
+    ...listCounts,
+  ], [data.data_extensions, data.de_rows, listCounts]);
+  const labelOf = (k: string) => excludeOpts.find((o) => o.key === k)?.label ?? k;
+  const deName = (id: string) => data.data_extensions.find((d) => d.id === id)?.name ?? "data extension";
 
-  const chosen: Contact[] = useMemo(() => {
-    let base: Contact[] = [];
-    if (mode === "one" || mode === "pick") base = data.contacts.filter((c) => ids.includes(c.id));
+  const chosen: Rcpt[] = useMemo(() => {
+    let base: Rcpt[] = [];
+    if (mode === "de") {
+      const r = deMembers(des, data.data_extensions, data.de_rows, data.contacts);
+      base = [...r.matched.map((m) => ({ ...m.contact, vars: m.vars })),
+        ...r.fresh.map((f) => ({ ...newContact(f), id: `new:${f.email}`, created_at: "", vars: f.vars, isNew: true }) as unknown as Rcpt)];
+    }
+    if (mode === "pick") base = data.contacts.filter((c) => ids.includes(c.id));
     const union = (keys: string[]) => new Set(keys.flatMap((k) => membersOf(k, data.contacts, data.segments, x).map((c) => c.id)));
     if (mode === "list") { const inc = union(lists); base = data.contacts.filter((c) => inc.has(c.id)); }
     if (mode === "all") base = data.contacts;
-    const out = union(exclude);
-    return base.filter((c) => !out.has(c.id));
-  }, [mode, ids, lists, exclude, data.contacts, data.segments, x]);
-  const personalAllowed = (mode === "one" || mode === "pick") && chosen.length <= 25;
+    const out = union(exclude.filter((k) => !k.startsWith(DE)));
+    const outMail = deEmails(exclude.filter((k) => k.startsWith(DE)).map((k) => k.slice(DE.length)), data.data_extensions, data.de_rows, data.contacts);
+    return base.filter((c) => !out.has(c.id) && !(c.email && outMail.has(c.email.toLowerCase())));
+  }, [mode, des, ids, lists, exclude, data.contacts, data.segments, data.data_extensions, data.de_rows, x]);
+  const personalAllowed = mode === "pick" && chosen.length <= 25;
   const marketing = kind === "marketing" || !personalAllowed;
-  const recipients = chosen.filter((c) => c.email && (!marketing || !c.unsubscribed));
-  const noEmail = chosen.filter((c) => !c.email).length, unsub = marketing ? chosen.filter((c) => c.email && c.unsubscribed).length : 0;
-  const audienceLabel = mode === "one" ? (chosen[0]?.name ?? "One person") : mode === "pick" ? `${chosen.length} selected people` : mode === "list" ? `List: ${lists.map(labelOf).join(", ")}` : "Everyone";
+  const suppressed = useMemo(() => new Set(data.suppressions.map((s) => s.email.toLowerCase())), [data.suppressions]);
+  const blocked = (c: Rcpt) => c.email_status === "bounced" || c.email_status === "complaint" || (marketing && (c.unsubscribed || suppressed.has(c.email.toLowerCase())));
+  const recipients = chosen.filter((c) => c.email && !blocked(c));
+  const noEmail = chosen.filter((c) => !c.email).length, unsub = chosen.filter((c) => c.email && blocked(c)).length;
+  const newCount = recipients.filter((c) => c.isNew).length;
+  const audienceLabel = mode === "de" ? `Data extension: ${des.map(deName).join(", ")}` : mode === "pick" ? (chosen.length === 1 ? chosen[0].name : `${chosen.length} selected contacts`) : mode === "list" ? `List: ${lists.map(labelOf).join(", ")}` : "Everyone";
   const needsSetup = marketing && (!settings?.address?.trim() || !settings?.business_name?.trim());
   const design = parseDesign(body);
 
   function next() {
     setErr("");
     if (step === 0) {
-      if ((mode === "one" || mode === "pick") && !ids.length) return setErr("Choose who should get this email.");
+      if (mode === "de" && !des.length) return setErr("Choose at least one data extension.");
+      if (mode === "pick" && !ids.length) return setErr("Choose who should get this email.");
       if (mode === "list" && !lists.length) return setErr("Choose at least one list.");
       if (!recipients.length) return setErr("Nobody to send to: the people you chose have no email address or have unsubscribed.");
     }
@@ -154,7 +208,7 @@ function SendWizard() {
       if (isNaN(+t0) || +t0 < clock() + 60_000) return setErr("Pick a time at least a minute from now.");
       const row = await crm.add("campaigns", {
         name: name.trim() || sendName(subject), subject: subject.trim(), body, audience: `label:${audienceLabel}`, status: "scheduled", sent_count: 0, failed_count: 0, sent_at: null,
-        scheduled_at: t0.toISOString(), spec: { mode, ids, lists, exclude, marketing },
+        scheduled_at: t0.toISOString(), spec: { mode, ids, lists, exclude, marketing, des },
       } as never);
       if (!row) return;
       if ((row as { status?: string }).status !== "scheduled" || !(row as { scheduled_at?: string }).scheduled_at) return setErr("Scheduling needs a one-time database update. Run supabase/migrations/007_scheduled_sends.sql in Supabase, then try again.");
@@ -163,7 +217,15 @@ function SendWizard() {
     }
     setProgress({ done: 0, total: recipients.length });
     try {
-      const r = await runSend({ name, subject, body, recipients, marketing, audienceLabel }, crm, settings, (done, total) => setProgress({ done, total }));
+      // New addresses from data extensions become contacts first (like SFMC's All Subscribers), so unsubscribes work.
+      const list: Rcpt[] = [];
+      for (const c of recipients) {
+        if (!c.isNew) { list.push(c); continue; }
+        const { vars, isNew: _n, id: _i, created_at: _c, ...fields } = c; void _n; void _i; void _c;
+        const made = await crm.add("contacts", fields as never);
+        if (made) list.push({ ...(made as Contact), vars });
+      }
+      const r = await runSend({ name, subject, body, recipients: list, marketing, audienceLabel }, crm, settings, (done, total) => setProgress({ done, total }));
       toast(r.demo ? `Demo: ${r.ok} email${r.ok === 1 ? "" : "s"} saved to history (not really sent)` : `Sent to ${r.ok} ${r.ok === 1 ? "person" : "people"}${r.bad ? `, ${r.bad} failed` : ""}`);
       router.push("/emails");
     } catch (e) { setErr((e as Error).message); setProgress(null); }
@@ -196,7 +258,7 @@ function SendWizard() {
               <h2 className="text-[15px] font-semibold">Who should get this?</h2>
               <div className="mt-3 grid gap-2 sm:grid-cols-4">
                 {MODES.map((m) => (
-                  <button key={m.id} type="button" aria-pressed={mode === m.id} onClick={() => { setMode(m.id); if (m.id === "one") setIds(ids.slice(0, 1)); }}
+                  <button key={m.id} type="button" aria-pressed={mode === m.id} onClick={() => { setMode(m.id); if (m.id !== "pick") setKind("marketing"); }}
                     className={`rounded-2xl border p-3.5 text-left transition ${mode === m.id ? "border-teal bg-teal-t/40 ring-2 ring-teal/20" : "border-line bg-white hover:border-teal/50"}`}>
                     <Icon name={m.icon} className={`size-5 ${mode === m.id ? "text-teal-d" : "text-muted"}`} />
                     <div className="mt-2 text-sm font-semibold text-ink">{m.title}</div><div className="text-[12.5px] text-muted">{m.text}</div>
@@ -204,14 +266,16 @@ function SendWizard() {
                 ))}
               </div>
             </div>
-            {(mode === "one" || mode === "pick") && <ContactPicker multiple={mode === "pick"} value={ids} onChange={setIds} />}
+            {mode === "de" && <DePicker value={des} onChange={setDes} />}
+            {mode === "pick" && <ContactPicker multiple value={ids} onChange={setIds} />}
             {mode === "list" && <ListPicker label="Send to everyone on" value={lists} onChange={setLists} counts={listCounts} />}
-            {mode !== "one" && listCounts.length > 0 && (
+            {excludeOpts.length > 0 && (
               <details className="rounded-2xl border border-line" open={exclude.length > 0}>
-                <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-ink">Leave people out (optional)</summary>
-                <div className="border-t border-line px-4 py-4"><ListPicker label="Don't send to anyone on" value={exclude} onChange={setExclude} counts={listCounts} /></div>
+                <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-ink">Exclusions (optional)</summary>
+                <div className="border-t border-line px-4 py-4"><ListPicker label="Don't send to anyone in these data extensions or lists" value={exclude} onChange={setExclude} counts={excludeOpts} /></div>
               </details>
             )}
+            {mode === "de" && des.length > 0 && <p className="text-[13px] text-muted">Every field in the data extension works as a merge field, e.g. <code>{"{{FirstName}}"}</code> or <code>{"{{City}}"}</code>.</p>}
             {personalAllowed && (
               <div>
                 <div className="mb-2 text-sm font-semibold text-ink">Type of email</div>
@@ -228,7 +292,7 @@ function SendWizard() {
           <Card className="h-fit space-y-3 lg:sticky lg:top-6">
             <div className="text-sm font-semibold text-muted">Recipients</div>
             <div><span className="font-display text-4xl font-semibold text-ink">{recipients.length}</span> <span className="text-sm font-medium text-muted">will get this email</span></div>
-            {(noEmail > 0 || unsub > 0) && <ul className="space-y-1 text-[13px] text-muted">{noEmail > 0 && <li>{noEmail} left out: no email address</li>}{unsub > 0 && <li>{unsub} left out: unsubscribed</li>}</ul>}
+            {(noEmail > 0 || unsub > 0 || newCount > 0) && <ul className="space-y-1 text-[13px] text-muted">{noEmail > 0 && <li>{noEmail} left out: no email address</li>}{unsub > 0 && <li>{unsub} left out: unsubscribed, bounced or suppressed</li>}{newCount > 0 && <li>{newCount} new address{newCount === 1 ? "" : "es"} will be added to All Subscribers when you send</li>}</ul>}
             <Badge tone={marketing ? "iris" : "teal"}>{marketing ? "Marketing email" : "One-to-one email"}</Badge>
           </Card>
         </div>
@@ -237,8 +301,8 @@ function SendWizard() {
       {step === 1 && (
         <Card>
           <EmailEditor subject={subject} body={body} onSubject={setSubject} onBody={setBody} contact={recipients[0] ?? null}
-            aiContact={mode === "one" && recipients[0] ? { name: recipients[0].name, company: recipients[0].company } : { name: "{{first_name}}", company: "{{company}}" }}
-            aiPlaceholder={mode === "one" ? "e.g. Follow up on our call and suggest a visit next week" : "e.g. Announce our spring offer: 10% off first service"} />
+            aiContact={mode === "pick" && recipients.length === 1 ? { name: recipients[0].name, company: recipients[0].company } : { name: "{{first_name}}", company: "{{company}}" }}
+            aiPlaceholder={mode === "pick" && recipients.length === 1 ? "e.g. Follow up on our call and suggest a visit next week" : "e.g. Announce our spring offer: 10% off first service"} />
         </Card>
       )}
 

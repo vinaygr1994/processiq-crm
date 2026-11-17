@@ -6,8 +6,10 @@ import { fill } from "../format";
 import { emailVars, parseDesign, plainOf } from "../emailDesign";
 import { SEG, membersOf, segCtx, type SegCtx } from "../segments";
 import type { Segment } from "../types";
+import { DE, deEmails, deMembers, fillVars, newContact } from "../deSend";
 
-export interface SendSpec { mode: "one" | "pick" | "list" | "all"; ids: string[]; lists: string[]; exclude: string[]; marketing: boolean }
+/** des: data extensions to send to (mode "de"). exclude can hold lists, "seg:<id>" segments and "de:<id>" data extensions. */
+export interface SendSpec { mode: "one" | "pick" | "list" | "all" | "de"; ids: string[]; lists: string[]; exclude: string[]; marketing: boolean; des?: string[] }
 
 /** Everyone the send should reach right now. Lists can be tags or smart segments ("seg:<id>"). */
 export function resolveRecipients(spec: SendSpec, contacts: Contact[], segments: Segment[] = [], x: SegCtx | null = null): Contact[] {
@@ -39,15 +41,33 @@ export async function runScheduledSends(db: Db, port: Port, contacts: Contact[],
     const usesSeg = [...spec.lists, ...spec.exclude].some((k) => k.startsWith(SEG));
     const segments = usesSeg ? await db.list("segments").catch(() => []) : [];
     const x = usesSeg ? segCtx(emails, await db.list("deals"), await db.list("workflow_runs"), now) : null;
-    const todo = resolveRecipients(spec, contacts, segments, x).filter((c) => !already.has(c.id));
+    // Data extensions are read at send time, so rows added after scheduling are included.
+    const usesDe = spec.mode === "de" || spec.exclude.some((k) => k.startsWith(DE));
+    const des = usesDe ? await db.list("data_extensions").catch(() => []) : [];
+    const rows = usesDe ? await db.list("de_rows").catch(() => []) : [];
+    const varsOf = new Map<string, Record<string, string>>();
+    let pool = contacts;
+    if (spec.mode === "de") {
+      const r = deMembers(spec.des ?? [], des, rows, contacts);
+      r.matched.forEach((m) => varsOf.set(m.contact.id, m.vars));
+      const made: Contact[] = [];
+      for (const f of r.fresh) {
+        try { const c = await db.insert("contacts", { ...newContact(f), created_at: new Date(port.now()).toISOString() } as never) as Contact; made.push(c); varsOf.set(c.id, f.vars); } catch { /* skip a row that can't become a contact */ }
+      }
+      pool = [...contacts, ...made];
+    }
+    const outMail = deEmails(spec.exclude.filter((k) => k.startsWith(DE)).map((k) => k.slice(DE.length)), des, rows, pool);
+    const todo = resolveRecipients({ ...spec, ids: spec.mode === "de" ? [...varsOf.keys()] : spec.ids, mode: spec.mode === "de" ? "pick" : spec.mode, exclude: spec.exclude.filter((k) => !k.startsWith(DE)) }, pool, segments, x)
+      .filter((c) => !already.has(c.id) && !outMail.has(c.email.toLowerCase()));
     const design = parseDesign(camp.body);
     let ok = camp.sent_count, bad = camp.failed_count, finished = true;
     for (const c of todo) {
       if (Date.now() - started > BUDGET_MS) { finished = false; break; }
-      const subject = fill(camp.subject, c);
-      const vars = emailVars(c, settings);
+      const extra = varsOf.get(c.id) ?? {};
+      const subject = fill(fillVars(camp.subject, extra), c);
+      const vars = { ...emailVars(c, settings), ...extra };
       const sig = settings?.signature?.trim();
-      const body = design ? plainOf(camp.body, vars) : fill(camp.body.trimEnd(), c) + (!spec.marketing && sig ? `\n\n${sig}` : "");
+      const body = design ? plainOf(camp.body, vars) : fill(fillVars(camp.body.trimEnd(), extra), c) + (!spec.marketing && sig ? `\n\n${sig}` : "");
       const trackId = crypto.randomUUID();
       const r = await port.email({ to: c.email, subject, body, contactId: c.id, marketing: spec.marketing, design: design ?? undefined, vars, trackId });
       await db.insert("emails", { id: trackId, contact_id: c.id, to_email: c.email, subject, body, status: r.status === "failed" ? "failed" : r.status === "demo" ? "demo" : "sent", error: r.error ?? "", campaign_id: camp.id, created_at: new Date(port.now()).toISOString() } as never);

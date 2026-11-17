@@ -159,6 +159,7 @@ export default function DataExtensionPage() {
           <p className="mt-0.5 text-[13.5px] text-muted">{de.description || "No description"} · External key <code className="text-[12.5px]">{de.external_key}</code>{de.folder ? ` · Folder ${de.folder}` : ""}</p></div>
         {w && <div className="flex flex-wrap gap-2">
           {de.sendable && de.link?.to === "email" && <Button variant="soft" icon="users" disabled={busy || !all.length} onClick={sync}>{busy ? "Syncing…" : "Sync to contacts"}</Button>}
+          {de.sendable && de.link && <Link href={`/marketing/send?de=${de.id}`} className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white px-5 text-[15px] font-semibold text-ink hover:bg-cloud"><Icon name="send" className="size-4" />Send email</Link>}
           <Button variant="soft" icon="upload" onClick={() => setModal("import")}>Import</Button><Button icon="plus" onClick={() => setModal("add")}>Add record</Button>
         </div>}
       </div>

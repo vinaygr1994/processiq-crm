@@ -164,7 +164,7 @@ export function bodyOf(h: string): string {
 }
 
 export type Vars = Record<string, string>;
-const sub = (t: string, v: Vars) => t.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, k: string) => v[k.toLowerCase()] ?? "");
+const sub = (t: string, v: Vars) => t.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_m, k: string) => v[k.toLowerCase()] ?? "");
 
 /** Variables for one recipient. */
 export function emailVars(c: { name: string; company: string } | null, st: { business_name?: string; booking_link?: string; review_link?: string } | null | undefined): Vars {
