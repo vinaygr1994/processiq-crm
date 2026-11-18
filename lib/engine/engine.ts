@@ -13,10 +13,15 @@ export interface Db {
   list<K extends keyof Tables>(table: K): Promise<Tables[K][]>;
   insert<K extends keyof Tables>(table: K, row: Omit<Tables[K], "id" | "created_at"> & { created_at?: string }): Promise<Tables[K]>;
   update<K extends keyof Tables>(table: K, id: string, patch: Partial<Tables[K]>): Promise<void>;
-  /** Atomically takes a run so two processes never handle it twice. */
-  claim(runId: string, lockUntil: string, nowIso: string): Promise<boolean>;
+  /** Atomically takes a run so two processes never handle it twice. Only succeeds while the run is still
+   *  exactly as this pass read it (same next_run_at), so a pass with stale data can't replay a step another
+   *  pass already did (that's what sent journey emails twice). */
+  claim(runId: string, lockUntil: string, nowIso: string, expectNext: string): Promise<boolean>;
   /** Atomically takes a due scheduled send (sets a short lease). */
   claimCampaign(id: string, leaseUntil: string, nowIso: string): Promise<boolean>;
+  /** Optional: one engine pass per workspace at a time (the browser and the scheduler both call the engine). */
+  lock?(untilIso: string, nowIso: string): Promise<boolean>;
+  unlock?(): Promise<void>;
 }
 export type SendResult = "sent" | "demo" | "failed" | "skipped";
 export interface Port {
@@ -116,6 +121,12 @@ export interface Summary { enrolled: number; steps: number; finished: number; se
 
 /** One pass: notice new triggers, then run every run that is due. Safe to call as often as you like. */
 export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string } = {}): Promise<Summary> {
+  const t0 = port.now();
+  if (db.lock && !(await db.lock(iso(t0 + 55_000), iso(t0)))) return { enrolled: 0, steps: 0, finished: 0 };
+  try { return await pass(db, port, opts); } finally { await db.unlock?.().catch(() => {}); }
+}
+
+async function pass(db: Db, port: Port, opts: { onlyRunId?: string }): Promise<Summary> {
   const sum: Summary = { enrolled: 0, steps: 0, finished: 0 };
   const now = port.now();
   let [workflows, runs, deals, contacts, visits, settingsList] = await Promise.all([
@@ -159,7 +170,14 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
       // A newer run for the same job replaces an older one (e.g. a re-sent quote).
       for (const r of runs) if (r.workflow_id === w.id && r.deal_id === deal.id && r.status === "active" && !r.visit_id) { await db.update("workflow_runs", r.id, { status: "stopped", note: "Replaced by a newer run" }); r.status = "stopped"; }
     }
-    const run = await db.insert("workflow_runs", { workflow_id: w.id, deal_id: deal?.id ?? null, contact_id: contact?.id ?? deal?.contact_id ?? visit?.contact_id ?? null, visit_id: visit?.id ?? null, trigger_key: key, pos: [0], status: "active", next_run_at: iso(now), locked_until: null, note: "", created_at: iso(now) } as never);
+    let run: WorkflowRun;
+    try {
+      run = await db.insert("workflow_runs", { workflow_id: w.id, deal_id: deal?.id ?? null, contact_id: contact?.id ?? deal?.contact_id ?? visit?.contact_id ?? null, visit_id: visit?.id ?? null, trigger_key: key, pos: [0], status: "active", next_run_at: iso(now), locked_until: null, note: "", created_at: iso(now) } as never);
+    } catch (e) {
+      // Another pass enrolled this person a moment ago (unique key): that's fine, skip.
+      if (/duplicate|unique/i.test((e as Error).message)) return;
+      throw e;
+    }
     runs.push(run);
     sum.enrolled++;
   }
@@ -193,12 +211,16 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
     }
     if (t.type === "data_extension" && t.de) {
       const r = deMembers([t.de], des, deRows, contacts);
-      for (const m of r.matched) await enrol(w, `de:${t.de}:${m.contact.id}`, null, null, m.contact);
+      // Keyed by email address, so one person gets one run even if the address exists as two contacts.
+      const deKey = (c: Contact) => `de:${t.de}:e:${c.email.toLowerCase()}`;
+      const inWf = new Set(runs.filter((x) => x.workflow_id === w.id).map((x) => byContact(x.contact_id)?.email?.toLowerCase()).filter(Boolean));
+      for (const m of r.matched) if (!inWf.has(m.contact.email.toLowerCase())) await enrol(w, deKey(m.contact), null, null, m.contact);
       for (const f of r.fresh) {
+        if (inWf.has(f.email)) continue;
         // A new address in the DE becomes a contact first, so unsubscribes and tracking work.
         let c: Contact | null = null;
         try { c = await db.insert("contacts", { ...newContact(f), created_at: iso(now) } as never) as Contact; } catch { c = null; }
-        if (c) { contacts.push(c); await enrol(w, `de:${t.de}:${c.id}`, null, null, c); }
+        if (c) { contacts.push(c); await enrol(w, deKey(c), null, null, c); }
       }
     }
     if (t.type === "visit_no_show") for (const v of visits) if (v.status === "no_show" && new Date(v.starts_at).getTime() >= since) await enrol(w, `vnoshow:${v.id}`, byDeal(v.deal_id) ?? null, v);
@@ -212,7 +234,7 @@ export async function runEngine(db: Db, port: Port, opts: { onlyRunId?: string }
   for (const run of due) {
     const wf = workflows.find((w) => w.id === run.workflow_id);
     if (!wf || !wf.active) continue;
-    if (!(await db.claim(run.id, iso(now + 2 * MIN), iso(now)))) continue;
+    if (!(await db.claim(run.id, iso(now + 2 * MIN), iso(now), run.next_run_at))) continue;
     let pos = run.pos;
     // Waits count from when this step was scheduled. After a long gap (e.g. an outage) count from now instead, so nothing floods out at once.
     let baseMs = new Date(run.next_run_at).getTime();

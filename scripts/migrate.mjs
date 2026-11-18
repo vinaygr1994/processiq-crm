@@ -49,7 +49,19 @@ try {
   await sql.unsafe(schema);
   await sql.unsafe("notify pgrst, 'reload schema'");
   const [row] = await sql`select value from public.crm_meta where key = 'schema_version'`;
-  console.log(`[migrate] Database is at version ${row?.value} (${Date.now() - t0} ms).`);
+  // 3. Prove every column the app uses really exists ("create table if not exists" never adds columns,
+  //    which is how open/click tracking once silently broke).
+  const want = [];
+  for (const m of schema.matchAll(/create table if not exists public\.(\w+) \(([\s\S]*?)\n\);/g)) {
+    for (const line of m[2].split("\n")) {
+      const c = /^\s*([a-z_]+)\s+(uuid|text|timestamptz|boolean|int|integer|bigint|jsonb|numeric|date)\b/.exec(line)?.[1];
+      if (c && !["primary", "unique", "constraint", "check", "foreign"].includes(c)) want.push([m[1], c]);
+    }
+  }
+  const have = new Set((await sql`select table_name, column_name from information_schema.columns where table_schema = 'public'`).map((r) => `${r.table_name}.${r.column_name}`));
+  const missing = want.map(([t, c]) => `${t}.${c}`).filter((k) => !have.has(k));
+  if (missing.length) throw new Error(`columns still missing after the update: ${missing.join(", ")}`);
+  console.log(`[migrate] Database is at version ${row?.value}, all ${want.length} columns present (${Date.now() - t0} ms).`);
 } catch (e) {
   // Never print the URL itself: it contains the database password.
   const msg = String(e?.message ?? e).replace(url, "<SUPABASE_DB_URL>");

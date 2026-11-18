@@ -34,6 +34,12 @@ const STUDIOS: Studio[] = [
     { href: "/audience?tab=designer", label: "Data Designer", text: "How data extensions relate to a contact" },
     { href: "/marketing/lists", label: "Lists and Segments", text: "Static lists and rule-based segments" },
   ] },
+  { id: "analytics", label: "Analytics Builder", icon: "chart", match: (p) => p.startsWith("/analytics"), items: [
+    { href: "/analytics?tab=overview", label: "Overview", text: "Sends, opens, clicks and unsubscribes over time" },
+    { href: "/analytics?tab=emails", label: "Email performance", text: "Opens and clicks for every send and journey email" },
+    { href: "/analytics?tab=journeys", label: "Journey performance", text: "Entries, exits and results per email step" },
+    { href: "/analytics?tab=subscribers", label: "Subscriber health", text: "Active, unsubscribed, bounced and why people left" },
+  ] },
   { id: "web", label: "Web Studio", icon: "note", match: (p) => p.startsWith("/marketing/forms"), items: [
     { href: "/marketing/forms", label: "Forms and landing pages", text: "Capture leads and sign-ups" },
     { href: "/bookings/settings", label: "Booking page", text: "Your public booking page, in the CRM" },
