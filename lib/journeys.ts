@@ -116,6 +116,21 @@ export function reIdAll(steps: Step[]): Step[] {
   return fix(out);
 }
 
+/** A new draft journey with the same entry source, settings and canvas as w (like SFMC's Copy).
+ *  Every activity gets a new id, so the copy's analytics and the people in it are its own. */
+export function copyOfJourney(w: Pick<Workflow, "name" | "description" | "trigger" | "steps" | "exit" | "template_id">, name: string) {
+  const { version: _v, ...trigger } = w.trigger as Trigger & { version?: number };
+  void _v;
+  return { name: name.trim() || `Copy of ${w.name}`, description: w.description ?? "", trigger: JSON.parse(JSON.stringify(trigger)) as Trigger, steps: reIdAll(JSON.parse(JSON.stringify(w.steps)) as Step[]), exit: JSON.parse(JSON.stringify(w.exit ?? [])) as Cond[], active: false, activated_at: new Date().toISOString(), template_id: w.template_id || "journey:copy" };
+}
+/** "Copy of X", or "Copy of X (2)" when that name is taken. */
+export function copyName(name: string, taken: string[]) {
+  const base = `Copy of ${name.replace(/^Copy of /, "")}`;
+  if (!taken.includes(base)) return base;
+  let i = 2; while (taken.includes(`${base} (${i})`)) i++;
+  return `${base} (${i})`;
+}
+
 /* ---------- Stats ---------- */
 export interface JourneyStats { entered: number; active: number; done: number; goal: number; stopped: number }
 /** Where a step sits, as the engine's position path. */

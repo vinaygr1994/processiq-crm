@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Button, Card, ConfirmModal, Empty, Modal, PageHeader } from "@/components/ui";
 import { triggerText } from "@/components/WorkflowEditor";
+import { CopyJourneyModal } from "@/components/CopyJourney";
 import { useCrm } from "@/lib/store";
 import { useStages } from "@/lib/useStages";
 import { isJourney, journeyStarters, journeyStats, type Starter } from "@/lib/journeys";
@@ -16,6 +17,7 @@ export default function JourneysPage() {
   const { name: stageName } = useStages();
   const [picker, setPicker] = useState(false);
   const [del, setDel] = useState<Workflow | null>(null);
+  const [copy, setCopy] = useState<Workflow | null>(null);
   const list = data.workflows.filter(isJourney).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const runs = (id: string) => data.workflow_runs.filter((r) => r.workflow_id === id);
 
@@ -38,14 +40,14 @@ export default function JourneysPage() {
         <Card><Empty icon="route" title="Build your first journey" text="Start from a ready-made journey such as a welcome series or an A/B test, or start from a blank canvas." action={<Button icon="plus" onClick={() => setPicker(true)}>New journey</Button>} /></Card>
       ) : (
         <Card className="!p-0 overflow-hidden">
-          <div className="hidden grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_90px_40px] gap-3 border-b border-line px-5 py-3 text-[13px] font-semibold text-muted lg:grid">
+          <div className="hidden grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_90px_72px] gap-3 border-b border-line px-5 py-3 text-[13px] font-semibold text-muted lg:grid">
             <span>Journey</span><span>Status</span><span className="text-right">Entered</span><span className="text-right">In journey</span><span className="text-right">Completed</span><span className="text-right">Goal met</span><span />
           </div>
           <ul className="divide-y divide-line">
             {list.map((w) => {
               const s = journeyStats(runs(w.id));
               return (
-                <li key={w.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_90px_40px]">
+                <li key={w.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_90px_72px]">
                   <div className="min-w-0">
                     <Link href={`/journeys/${w.id}`} className="font-semibold text-ink hover:text-teal-d hover:underline">{w.name}</Link>
                     <div className="truncate text-sm text-muted">{triggerText(w.trigger, stageName)}</div>
@@ -55,7 +57,10 @@ export default function JourneysPage() {
                   <div className="hidden text-right lg:block">{s.active}</div>
                   <div className="hidden text-right lg:block">{s.done}</div>
                   <div className="hidden text-right lg:block">{s.goal}</div>
-                  <button onClick={() => setDel(w)} className="hidden justify-self-end text-[#b3bdd2] hover:text-rose lg:block" aria-label={`Delete ${w.name}`}><Icon name="trash" className="size-[18px]" /></button>
+                  <div className="flex items-center gap-3 justify-self-end">
+                    <button onClick={() => setCopy(w)} className="text-[#8a96ad] hover:text-teal-d" aria-label={`Copy ${w.name}`} title="Copy journey"><Icon name="layers" className="size-[18px]" /></button>
+                    <button onClick={() => setDel(w)} className="hidden text-[#b3bdd2] hover:text-rose lg:block" aria-label={`Delete ${w.name}`} title="Delete journey"><Icon name="trash" className="size-[18px]" /></button>
+                  </div>
                 </li>
               );
             })}
@@ -76,6 +81,7 @@ export default function JourneysPage() {
           </div>
         </Modal>
       )}
+      {copy && <CopyJourneyModal source={copy} onClose={() => setCopy(null)} />}
       {del && <ConfirmModal title={`Delete “${del.name}”?`} text="Everyone currently in this journey leaves it. This can't be undone." onClose={() => setDel(null)} onConfirm={() => destroy(del)} />}
     </div>
   );

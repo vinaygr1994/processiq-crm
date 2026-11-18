@@ -1,4 +1,5 @@
 "use client";
+import { CopyJourneyModal } from "@/components/CopyJourney";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
@@ -235,6 +236,7 @@ export default function JourneyPage() {
   const [emailOpen, setEmailOpen] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [tab, setTab] = useState<"canvas" | "analytics">("canvas");
+  const [copying, setCopying] = useState(false);
   const [q, setQ] = useState("");
   const [view, setView] = useState({ x: 40, y: 80, z: 1 });
   const vp = useRef<HTMLDivElement>(null), inner = useRef<HTMLDivElement>(null);
@@ -570,6 +572,7 @@ export default function JourneyPage() {
   const entryDe = trigger.type === "data_extension" ? data.data_extensions.find((d) => d.id === trigger.de) : undefined;
   return (
     <DeFieldsContext.Provider value={entryDe?.fields ?? []}>
+    {copying && <CopyJourneyModal source={{ name, description: saved.description, trigger, steps, exit, template_id: saved.template_id }} onClose={() => setCopying(false)} />}
     <div className="fixed inset-0 z-40 flex flex-col bg-white">
       {/* Header */}
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-3 sm:px-4">
@@ -580,6 +583,7 @@ export default function JourneyPage() {
         <span className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${statusTone}`}>{status}</span>
         {dirty && <span className="hidden text-[12.5px] text-muted lg:inline">Unsaved changes</span>}
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="soft" size="sm" icon="layers" onClick={() => setCopying(true)} title="Copy this journey, including unsaved changes">Copy</Button>
           <Button variant="soft" size="sm" onClick={() => setDialog("validate")}>Validate{v.errors.length ? ` (${v.errors.length})` : ""}</Button>
           <Button variant="soft" size="sm" onClick={save} disabled={!dirty}>Save</Button>
           {saved.active ? <Button size="sm" variant="soft" icon="pause" onClick={pause}>Pause</Button> : <Button size="sm" icon="play" onClick={() => setDialog("activate")}>{status === "Paused" ? "Resume" : "Activate"}</Button>}
