@@ -797,6 +797,28 @@ alter table public.settings add column if not exists engine_lock timestamptz;
 create index if not exists emails_run_idx on public.emails(run_id);
 create index if not exists emails_created_idx on public.emails(owner_id, created_at desc);
 
+-- ===== 021_email_events.sql =====
+-- Every open and click (with the link), for "who opened / who clicked" and link reports.
+-- emails.opened_at / clicked_at keep the first one; this keeps them all.
+create table if not exists public.email_events (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  email_id uuid not null references public.emails(id) on delete cascade,
+  kind text not null check (kind in ('open','click')),
+  url text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists email_events_email_idx on public.email_events(email_id);
+create index if not exists email_events_owner_idx on public.email_events(owner_id, created_at desc);
+
+do $$
+begin
+  execute 'alter table public.email_events enable row level security';
+  execute 'drop policy if exists "crm_select" on public.email_events';
+  -- Read-only for the team; only the tracking endpoints (service role) write events.
+  execute 'create policy "crm_select" on public.email_events for select to authenticated using (owner_id = public.crm_org() and not public.crm_blocked())';
+end $$;
+
 -- KEEP THIS LAST. When you add a section above, bump the number here AND SCHEMA_VERSION in lib/schemaVersion.ts.
-insert into public.crm_meta (key, value, updated_at) values ('schema_version', '20', now())
+insert into public.crm_meta (key, value, updated_at) values ('schema_version', '21', now())
   on conflict (key) do update set value = excluded.value, updated_at = now();

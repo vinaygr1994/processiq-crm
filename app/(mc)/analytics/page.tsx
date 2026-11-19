@@ -11,6 +11,7 @@ import { resolveRange, type Custom, type RangeId } from "@/lib/dateRange";
 import { nowMs } from "@/lib/clock";
 import { toCsv } from "@/lib/csv";
 import type { EmailLog } from "@/lib/types";
+import { EmailRecipients } from "@/components/EmailRecipients";
 
 type Tab = "overview" | "emails" | "journeys" | "subscribers";
 const TABS: [Tab, string][] = [["overview", "Overview"], ["emails", "Email performance"], ["journeys", "Journey performance"], ["subscribers", "Subscriber health"]];
@@ -82,6 +83,7 @@ function ReportsInner() {
   const [custom, setCustom] = useState<Custom>({ from: "", to: "" });
   const [tests, setTests] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{ title: string; sub: string; items: EmailLog[] } | null>(null);
   const [now] = useState(() => nowMs());
   const range = resolveRange(rangeId, custom, now);
 
@@ -99,7 +101,7 @@ function ReportsInner() {
     const camps = new Map(data.campaigns.map((c) => [c.id, c]));
 
     // One row per send: an Email Studio send, a journey email step, a test, or a one-off email from the CRM.
-    type Row = Stat & { key: string; name: string; sub: string; type: "Send" | "Journey" | "Test" | "One-off"; last: string; href?: string };
+    type Row = Stat & { key: string; name: string; sub: string; type: "Send" | "Journey" | "Test" | "One-off"; last: string; href?: string; items: EmailLog[] };
     const rows = new Map<string, Row>();
     for (const e of emails) {
       const run = e.run_id ? runs.get(e.run_id) : undefined;
@@ -108,7 +110,7 @@ function ReportsInner() {
       const key = e.status === "test" ? `test:${e.subject}` : c ? `c:${c.id}` : wf ? `j:${wf.id}:${e.step_id ?? e.subject}` : `o:${e.subject}`;
       let row = rows.get(key);
       if (!row) {
-        row = { ...zero(), key, last: e.created_at,
+        row = { ...zero(), key, last: e.created_at, items: [],
           name: c?.name || e.subject || "(no subject)",
           sub: e.status === "test" ? "Test send" : c ? e.subject : wf ? `${wf.name}` : "Sent from the CRM",
           type: e.status === "test" ? "Test" : c ? "Send" : wf ? "Journey" : "One-off",
@@ -116,7 +118,7 @@ function ReportsInner() {
         if (wf) row.name = e.subject;
         rows.set(key, row);
       }
-      tally(row, e);
+      tally(row, e); row.items.push(e);
       if (e.created_at > row.last) row.last = e.created_at;
     }
     const sends = [...rows.values()].sort((a, b) => b.last.localeCompare(a.last));
@@ -140,8 +142,8 @@ function ReportsInner() {
       const ids = new Set(data.workflow_runs.filter((x) => x.workflow_id === w.id).map((x) => x.id));
       const em = emails.filter((e) => e.run_id && ids.has(e.run_id));
       const st = zero(); em.forEach((e) => tally(st, e));
-      const steps = new Map<string, Stat & { subject: string }>();
-      for (const e of em) { const k = e.step_id ?? e.subject; const s = steps.get(k) ?? { ...zero(), subject: e.subject }; tally(s, e); steps.set(k, s); }
+      const steps = new Map<string, Stat & { subject: string; items: EmailLog[] }>();
+      for (const e of em) { const k = e.step_id ?? e.subject; const s = steps.get(k) ?? { ...zero(), subject: e.subject, items: [] }; tally(s, e); s.items.push(e); steps.set(k, s); }
       const order = (w.steps.length ? JSON.stringify(w.steps) : "");
       const stepList = [...steps.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([k, s]) => ({ k, ...s }));
       return { w, entered: rs.length, active: rs.filter((x) => x.status === "active").length, done: rs.filter((x) => x.status === "done").length,
@@ -190,6 +192,7 @@ function ReportsInner() {
         {TABS.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`pill -mb-px whitespace-nowrap border-b-2 px-3 py-2 text-[13.5px] font-semibold ${tab === id ? "border-teal-d text-teal-d" : "border-transparent text-muted hover:text-ink"}`}>{l}</button>)}
       </div>
 
+      {detail && <EmailRecipients title={detail.title} sub={detail.sub} items={detail.items} onClose={() => setDetail(null)} />}
       {tab === "overview" && (<div className="space-y-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
           <Kpi label="Sent" value={t.sent} note={p.sent ? `${p.sent} in the previous period` : undefined} />
@@ -224,14 +227,14 @@ function ReportsInner() {
 
       {tab === "emails" && (r.sends.length === 0 ? <Card><Empty icon="mail" title="No emails in this period" text="Every send, journey email and one-off email shows up here with its opens and clicks." /></Card> : (
         <Card className="!p-0 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-line px-5 py-3"><span className="text-[13px] text-muted">{r.sends.length} email{r.sends.length === 1 ? "" : "s"} · unique opens and clicks per person</span><button onClick={exportEmails} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-teal-d hover:underline"><Icon name="download" className="size-4" />Export CSV</button></div>
+          <div className="flex items-center justify-between border-b border-line px-5 py-3"><span className="text-[13px] text-muted">{r.sends.length} email{r.sends.length === 1 ? "" : "s"} · select an email to see who opened and clicked</span><button onClick={exportEmails} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-teal-d hover:underline"><Icon name="download" className="size-4" />Export CSV</button></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-[13.5px]">
             <thead className="bg-cloud text-[12px] font-semibold text-muted"><tr>
               <th className="px-5 py-2.5">Email</th><th className="px-3 py-2.5">Type</th><th className="px-3 py-2.5 text-right">Sent</th><th className="px-3 py-2.5 text-right">Opens</th><th className="w-32 px-3 py-2.5">Open rate</th><th className="px-3 py-2.5 text-right">Clicks</th><th className="px-3 py-2.5 text-right">Click rate</th><th className="px-5 py-2.5 text-right">Last sent</th>
             </tr></thead>
             <tbody className="divide-y divide-line">{r.sends.map((s) => (
-              <tr key={s.key} className="align-top">
-                <td className="max-w-[320px] px-5 py-3"><div className="truncate font-semibold text-ink">{s.href ? <Link href={s.href} className="hover:underline">{s.name}</Link> : s.name}</div><div className="truncate text-[12.5px] text-muted">{s.sub}</div></td>
+              <tr key={s.key} className="cursor-pointer align-top hover:bg-cloud/60" onClick={() => setDetail({ title: s.name, sub: `${s.type === "Journey" ? `Journey: ${s.sub}` : s.sub} · ${s.sent} sent · ${s.opens} opened · ${s.clicks} clicked`, items: s.items })} title="See who opened and clicked">
+                <td className="max-w-[320px] px-5 py-3"><div className="truncate font-semibold text-ink">{s.name}</div><div className="truncate text-[12.5px] text-muted">{s.sub}</div></td>
                 <td className="px-3 py-3"><Badge tone={s.type === "Journey" ? "iris" : s.type === "Send" ? "teal" : "gray"}>{s.type}</Badge></td>
                 <td className="px-3 py-3 text-right tabular-nums">{s.sent}{s.failed ? <div className="text-[12px] text-rose">{s.failed} failed</div> : null}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{s.opens}</td>
@@ -264,13 +267,13 @@ function ReportsInner() {
                 </tr>
                 {open === j.w.id && <tr><td colSpan={8} className="bg-cloud/50 px-5 py-3">
                   {j.steps.length ? <ol className="space-y-2.5">{j.steps.map((s, i) => (
-                    <li key={s.k} className="grid grid-cols-[24px_1fr_repeat(3,90px)] items-center gap-3 text-[13px]">
+                    <li key={s.k}><button type="button" onClick={() => setDetail({ title: s.subject, sub: `Journey: ${j.w.name} · email ${i + 1} · ${s.sent} sent · ${s.opens} opened · ${s.clicks} clicked`, items: s.items })} className="grid w-full grid-cols-[24px_1fr_repeat(3,90px)] items-center gap-3 rounded-lg px-1 py-1 text-left text-[13px] hover:bg-white" title="See who opened and clicked">
                       <span className="grid size-6 place-items-center rounded-full bg-iris-t text-[11.5px] font-semibold text-iris">{i + 1}</span>
                       <span className="truncate font-medium text-ink">{s.subject}</span>
                       <span className="text-right tabular-nums text-muted">{s.sent} sent</span>
                       <span className="text-right tabular-nums text-teal-d">{pct(s.opens, s.sent)} open</span>
                       <span className="text-right tabular-nums text-iris">{pct(s.clicks, s.sent)} click</span>
-                    </li>))}</ol> : <p className="text-[13px] text-muted">No emails sent by this journey in this period.</p>}
+                    </button></li>))}</ol> : <p className="text-[13px] text-muted">No emails sent by this journey in this period.</p>}
                   <Link href={`/journeys/${j.w.id}`} className="mt-3 inline-block text-[13px] font-semibold text-teal-d hover:underline">Open in Journey Builder</Link>
                 </td></tr>}
               </Fragment>))}</tbody>

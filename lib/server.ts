@@ -35,3 +35,12 @@ export const appUrl = (req: Request) =>
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Records one open or click for an email (every one, not just the first). Never throws: tracking must not break the redirect. */
+export async function logEvent(sb: SupabaseClient, emailId: string, kind: "open" | "click", url = "") {
+  try {
+    const { data } = await sb.from("emails").select("owner_id").eq("id", emailId).maybeSingle();
+    if (!data?.owner_id) return;
+    await sb.from("email_events").insert({ owner_id: data.owner_id, email_id: emailId, kind, url: url.slice(0, 2000) });
+  } catch { /* table not created yet, or a hiccup: the first open/click is still on the email */ }
+}

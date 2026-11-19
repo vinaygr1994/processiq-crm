@@ -1,4 +1,4 @@
-import { serviceClient, verifyId } from "@/lib/server";
+import { logEvent, serviceClient, verifyId } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ export async function GET(req: Request) {
     const now = new Date().toISOString();
     await sb.from("emails").update({ clicked_at: now }).eq("id", id).is("clicked_at", null).then(() => {}, () => {});
     await sb.from("emails").update({ opened_at: now }).eq("id", id).is("opened_at", null).then(() => {}, () => {});
+    await logEvent(sb, id, "click", u);
   }
   return Response.redirect(u, 302);
 }
