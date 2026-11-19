@@ -253,7 +253,7 @@ function ReportsInner() {
             <tbody className="divide-y divide-line">{r.journeys.map((j) => (
               <Fragment key={j.w.id}>
                 <tr className="cursor-pointer hover:bg-cloud/60" onClick={() => setOpen(open === j.w.id ? null : j.w.id)} aria-expanded={open === j.w.id}>
-                  <td className="px-5 py-3"><div className="flex items-center gap-2"><Icon name="down" className={`size-3.5 text-muted transition ${open === j.w.id ? "" : "-rotate-90"}`} /><span className="font-semibold text-ink">{j.w.name}</span><Badge tone={j.w.active ? "green" : "gray"}>{j.w.active ? "Running" : "Stopped"}</Badge></div></td>
+                  <td className="px-5 py-3"><div className="flex items-center gap-2"><Icon name="down" className={`size-3.5 text-muted transition ${open === j.w.id ? "" : "-rotate-90"}`} /><span className="font-semibold text-ink">{j.w.name}{(j.w.trigger.version ?? 1) > 1 ? ` · v${j.w.trigger.version}` : ""}</span><Badge tone={j.w.active ? "green" : "gray"}>{j.w.active ? "Running" : "Stopped"}</Badge></div></td>
                   <td className="px-3 py-3 text-right tabular-nums">{j.entered}</td>
                   <td className="px-3 py-3 text-right tabular-nums">{j.active}</td>
                   <td className="px-3 py-3 text-right tabular-nums">{j.done}</td>

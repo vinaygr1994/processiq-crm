@@ -1,7 +1,7 @@
 "use client";
 import { CopyJourneyModal } from "@/components/CopyJourney";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { Button, Card, Field, Modal } from "@/components/ui";
@@ -16,7 +16,7 @@ import { branches, uid, type Cond, type Path, type Step, type Trigger } from "@/
 import type { EmailLog, WorkflowRun } from "@/lib/types";
 import {
   ACTIVITIES, CONTACT_FIELDS, ENTRY, GROUPS, GROUP_SOLID, GROUP_TONE, activityOf, allSteps, emailStats, findStep, inPath, isJourney, journeyStats,
-  mapList, mapStep, posKey, posOfStep, removeStep, waitingAt, type ListPath,
+  mapList, mapStep, nextVersion, posKey, posOfStep, removeStep, versionOf, versionStatus, versionsOf, waitingAt, type ListPath,
 } from "@/lib/journeys";
 
 /* ---------- Helpers ---------- */
@@ -218,11 +218,26 @@ function CondList({ conds, onChange, empty, add }: { conds: Cond[]; onChange: (c
 }
 
 /* ---------- Page ---------- */
+/** When the "can't edit a running version" note was last shown, so typing doesn't stack up toasts. */
+const lockNote = { at: 0 };
+function noteLocked(toast: (m: string) => void) {
+  if (Date.now() - lockNote.at < 4000) return;
+  lockNote.at = Date.now();
+  toast("This version can't be changed while it's running. Click New version to make changes.");
+}
 export default function JourneyPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, ready, update, toast, settings } = useCrm();
+  const { data, ready, update, add, toast, settings } = useCrm();
+  const router = useRouter();
   const { stages, name: stageName } = useStages();
   const saved = data.workflows.find((w) => w.id === id);
+  // A running (or replaced) version is read-only, like SFMC: changes go into a new version.
+  const locked = !!saved && (saved.active || !!saved.trigger.closed);
+  const blocked = () => {
+    if (!locked) return false;
+    noteLocked(toast);
+    return true;
+  };
   const [name, setName] = useState("");
   const [trigger, setTrigger] = useState<Trigger>({ type: "contact_created" });
   const [exit, setExit] = useState<Cond[]>([]);
@@ -275,7 +290,7 @@ export default function JourneyPage() {
   const waiting = useMemo(() => waitingAt(runs), [runs]);
   const emails = data.emails;
 
-  const edit = (next: Step[]) => { setSteps(next); setDirty(true); };
+  const edit = (next: Step[]) => { if (blocked()) return; setSteps(next); setDirty(true); };
   const setStep = (s: Step) => edit(mapStep(steps, s.id, () => s));
   const del = (sid: string) => { edit(removeStep(steps, sid)); setSel(null); };
 
@@ -283,20 +298,23 @@ export default function JourneyPage() {
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (dialog || emailOpen || !sel || sel === "entry" || /INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable) return;
+      if (locked || dialog || emailOpen || !sel || sel === "entry" || /INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable) return;
       if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); setSteps((cur) => removeStep(cur, sel)); setDirty(true); setSel(null); }
       if (e.key === "Escape") setSel(null);
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [sel, dialog, emailOpen]);
+  }, [sel, dialog, emailOpen, locked]);
 
   if (!ready) return null;
   if (!saved || !isJourney(saved)) return <Card><p>That journey doesn&apos;t exist. <Link href="/journeys" className="font-semibold text-teal-d hover:underline">Back to journeys</Link></p></Card>;
 
   const stats = journeyStats(runs);
-  const status = saved.active ? "Running" : runs.length ? "Paused" : "Draft";
-  const version = trigger.version ?? 1;
+  const status = versionStatus(saved, data.workflow_runs);
+  const version = versionOf(saved);
+  const versions = versionsOf(data.workflows, saved);
+  const latest = versions[0];
+  const draftAhead = versions.find((o) => versionOf(o) > version && versionStatus(o, data.workflow_runs) === "Draft");
   // In a data extension journey, a new Decision Split starts on the DE's yes/no field (e.g. Meeting_Booked is True).
   const smart = (st: Step): Step => {
     const de = trigger.type === "data_extension" ? data.data_extensions.find((d) => d.id === trigger.de) : undefined;
@@ -312,7 +330,7 @@ export default function JourneyPage() {
     const at = old >= 0 && old < index ? index - 1 : index;
     edit(mapList(removeStep(steps, sid), lp, (l) => [...l.slice(0, at), s, ...l.slice(at)])); setSel(sid);
   };
-  const setTrig = (t: Trigger) => { setTrigger(t); setDirty(true); };
+  const setTrig = (t: Trigger) => { if (blocked()) return; setTrigger(t); setDirty(true); };
   const startDrag = (e: DragEvent, payload: string) => { e.dataTransfer.setData("text/plain", payload); e.dataTransfer.effectAllowed = payload.startsWith("mv:") ? "move" : "copy"; setDragging(true); };
   const endDrag = () => { setDragging(false); setHot(null); };
   const onDrop = (e: DragEvent, lp: ListPath, index: number) => {
@@ -357,18 +375,23 @@ export default function JourneyPage() {
   const v = validate();
 
   const persist = async (patch: Record<string, unknown> = {}) => {
-    const bump = dirty && saved.active && runs.length > 0;
-    const t = bump ? { ...trigger, version: version + 1 } : trigger;
-    if (bump) setTrigger(t);
-    await update("workflows", saved.id, { name: name.trim() || "Untitled journey", trigger: t, exit, steps, ...patch });
+    await update("workflows", saved.id, { name: name.trim() || "Untitled journey", trigger, exit, steps, ...patch });
     setDirty(false);
-    return bump;
   };
-  async function save() { const bumped = await persist(); toast(bumped ? `Saved as version ${version + 1}. People already in the journey carry on from where they are.` : "Journey saved"); }
+  async function save() { await persist(); toast("Journey saved"); }
+  // Activating a version hands over: older running versions stop taking new entries, people in them finish there.
+  const others = versions.filter((o) => o.id !== saved.id && o.active && !o.trigger.closed);
   async function activate() {
     if (v.errors.length) return setDialog("validate");
     await persist({ active: true, activated_at: saved!.activated_at && runs.length ? saved!.activated_at : new Date().toISOString() });
-    setDialog(null); toast("Journey activated");
+    for (const o of others) await update("workflows", o.id, { trigger: { ...o.trigger, closed: true } });
+    setDialog(null); toast(others.length ? `Version ${version} is live. Version ${others.map(versionOf).join(", ")} no longer takes new entries.` : "Journey activated");
+  }
+  async function newVersion() {
+    if (draftAhead) return router.push(`/journeys/${draftAhead.id}`);
+    if (dirty) await persist();
+    const row = await add("workflows", nextVersion(data.workflows, { ...saved!, name: name.trim() || saved!.name, trigger, exit, steps }));
+    if (row) { toast(`Version ${versionOf(row)} created as a draft. Edit it, then activate it to replace version ${version}.`); router.push(`/journeys/${row.id}`); }
   }
   async function pause() { await update("workflows", saved!.id, { active: false }); toast("Journey paused. Nobody new enters and contacts already in it wait where they are."); }
 
@@ -566,7 +589,7 @@ export default function JourneyPage() {
   })();
 
   const emailStep = emailOpen ? (findStep(steps, emailOpen) as Extract<Step, { type: "email" }> | null) : null;
-  const statusTone = status === "Running" ? "bg-[#e3f6ec] text-[#16794a]" : status === "Paused" ? "bg-sun-t text-[#8a5200]" : "bg-cloud text-body";
+  const statusTone = status === "Running" ? "bg-[#e3f6ec] text-[#16794a]" : status === "Paused" || status === "Finishing" ? "bg-sun-t text-[#8a5200]" : "bg-cloud text-body";
   const reentryLabel = { event: "Re-entry anytime", once: "No re-entry", after_exit: "Re-entry only after exiting" }[trigger.reentry ?? "event"];
 
   const entryDe = trigger.type === "data_extension" ? data.data_extensions.find((d) => d.id === trigger.de) : undefined;
@@ -578,15 +601,18 @@ export default function JourneyPage() {
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-3 sm:px-4">
         <Link href="/journeys" aria-label="Back to journeys" className="grid size-9 place-items-center rounded-lg text-muted hover:bg-cloud hover:text-ink"><Icon name="back" className="size-5" /></Link>
         <span className="hidden size-8 place-items-center rounded-lg bg-gradient-to-br from-teal via-[#2f7fd0] to-iris text-white sm:grid"><Icon name="route" className="size-4" /></span>
-        <input className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 font-display text-[17px] font-semibold text-ink hover:border-line focus:border-teal focus:outline-none sm:max-w-sm" aria-label="Journey name" value={name} onChange={(e) => { setName(e.target.value); setDirty(true); }} />
-        <span className="hidden rounded-md bg-cloud px-2 py-1 text-[12px] font-semibold text-body md:inline">Version {version}</span>
+        <input className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 font-display text-[17px] font-semibold text-ink hover:border-line focus:border-teal focus:outline-none sm:max-w-sm" aria-label="Journey name" value={name} readOnly={locked} title={locked ? "Create a new version to rename" : undefined} onChange={(e) => { setName(e.target.value); setDirty(true); }} />
+        <select aria-label="Version" value={saved.id} onChange={(e) => router.push(`/journeys/${e.target.value}`)} className="hidden h-8 rounded-md border border-line bg-cloud pl-2 pr-7 text-[12.5px] font-semibold text-body md:block">
+          {versions.map((o) => <option key={o.id} value={o.id}>Version {versionOf(o)} · {versionStatus(o, data.workflow_runs)}</option>)}
+        </select>
         <span className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${statusTone}`}>{status}</span>
         {dirty && <span className="hidden text-[12.5px] text-muted lg:inline">Unsaved changes</span>}
         <div className="ml-auto flex items-center gap-2">
           <Button variant="soft" size="sm" icon="layers" onClick={() => setCopying(true)} title="Copy this journey, including unsaved changes">Copy</Button>
           <Button variant="soft" size="sm" onClick={() => setDialog("validate")}>Validate{v.errors.length ? ` (${v.errors.length})` : ""}</Button>
           <Button variant="soft" size="sm" onClick={save} disabled={!dirty}>Save</Button>
-          {saved.active ? <Button size="sm" variant="soft" icon="pause" onClick={pause}>Pause</Button> : <Button size="sm" icon="play" onClick={() => setDialog("activate")}>{status === "Paused" ? "Resume" : "Activate"}</Button>}
+          {status !== "Draft" && (latest.id === saved.id || draftAhead) && <Button size="sm" variant={locked ? "primary" : "soft"} icon={draftAhead ? "edit" : "plus"} onClick={newVersion}>{draftAhead ? `Edit version ${versionOf(draftAhead)}` : "New version"}</Button>}
+          {status === "Running" ? <Button size="sm" variant="soft" icon="pause" onClick={pause}>Pause</Button> : status === "Draft" || status === "Paused" ? <Button size="sm" icon="play" onClick={() => setDialog("activate")}>{status === "Paused" ? "Resume" : "Activate"}</Button> : null}
         </div>
       </div>
       {/* Canvas toolbar */}
@@ -606,6 +632,16 @@ export default function JourneyPage() {
         )}
       </div>
 
+      {locked && (
+        <div className={`flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-[13px] ${status === "Running" ? "border-[#cdebd9] bg-[#effaf3] text-[#16603d]" : "border-[#f3dfb8] bg-[#fff8eb] text-[#7a4700]"}`}>
+          <Icon name={status === "Running" ? "play" : "clock"} className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1">
+            {status === "Running" ? <>Version {version} is running, so it can&apos;t be edited. To change it, create a new version. People already in this version finish here.</>
+              : <>Version {version} was replaced by a newer version. Nobody new enters it{status === "Finishing" ? `, and ${stats.active} ${stats.active === 1 ? "person is" : "people are"} finishing here` : ", and everyone in it has finished"}.</>}
+          </span>
+          {status !== "Running" && latest.id !== saved.id && <Link href={`/journeys/${latest.id}`} className="font-semibold underline">Open version {versionOf(latest)}</Link>}
+        </div>
+      )}
       <Ctx.Provider value={{ steps, runs, emails, waiting, sel, hot, dragging, setSel, setHot, setAdding, onDrop, startDrag, endDrag, stageName }}>
         <div className="flex min-h-0 flex-1">
           {tab === "canvas" && (
@@ -713,7 +749,7 @@ export default function JourneyPage() {
       {dialog === "exit" && (
         <Modal title="Exit Criteria" onClose={() => setDialog(null)}>
           <p className="mb-4 text-sm text-muted">Contacts are removed from the journey as soon as they match any of these, without counting as converted. For example: they unsubscribed, or they became a customer another way.</p>
-          <CondList conds={exit} onChange={(c) => { setExit(c); setDirty(true); }} empty="No exit criteria. Contacts stay until they reach the end or meet the goal." add={entryDe?.fields.length ? { field: `de.${(entryDe.fields.find((f) => f.type === "boolean") ?? entryDe.fields[0]).name}`, op: "is", value: "true" } : { field: "contact.unsubscribed", op: "is", value: "true" }} />
+          <CondList conds={exit} onChange={(c) => { if (blocked()) return; setExit(c); setDirty(true); }} empty="No exit criteria. Contacts stay until they reach the end or meet the goal." add={entryDe?.fields.length ? { field: `de.${(entryDe.fields.find((f) => f.type === "boolean") ?? entryDe.fields[0]).name}`, op: "is", value: "true" } : { field: "contact.unsubscribed", op: "is", value: "true" }} />
           {entryDe && <p className="mt-3 text-[13px] text-muted">Fields from <strong>{entryDe.name}</strong> are at the top of the list. Exit criteria are checked before every step, so a contact leaves as soon as their row changes, e.g. Meeting Booked becomes True.</p>}
           <div className="mt-5 flex justify-end"><Button onClick={() => setDialog(null)}>Done</Button></div>
         </Modal>
@@ -751,7 +787,7 @@ export default function JourneyPage() {
             <div className="rounded-xl bg-rose-t px-4 py-3 text-rose"><div className="font-semibold">Fix these first</div><ul className="mt-1 list-disc pl-5 text-sm">{v.errors.map((p) => <li key={p}>{p}</li>)}</ul></div>
           ) : (
             <dl className="divide-y divide-line rounded-xl border border-line text-sm">
-              {[["Entry source", `${entryDef?.label}${entryDetail ? ` (${entryDetail})` : ""}`], ...(trigger.type === "audience" ? [["Contacts entering now", String(audienceCount)]] : []), ...(trigger.type === "data_extension" ? [["Rows entering now", String(data.de_rows.filter((r) => r.de_id === trigger.de).length)]] : []), ["Activities", `${allSteps(steps).length} (${emailSteps.length} email${emailSteps.length === 1 ? "" : "s"})`], ["Entry mode", reentryLabel], ["Goal", trigger.goal?.length ? `${trigger.goal.length} criteria` : "None"], ["Exit criteria", exit.length ? `${exit.length} criteria` : "None"], ["Version", String(version)]].map(([k, val]) => (
+              {[["Entry source", `${entryDef?.label}${entryDetail ? ` (${entryDetail})` : ""}`], ...(trigger.type === "audience" ? [["Contacts entering now", String(audienceCount)]] : []), ...(trigger.type === "data_extension" ? [["Rows entering now", String(data.de_rows.filter((r) => r.de_id === trigger.de).length)]] : []), ["Activities", `${allSteps(steps).length} (${emailSteps.length} email${emailSteps.length === 1 ? "" : "s"})`], ["Entry mode", reentryLabel], ["Goal", trigger.goal?.length ? `${trigger.goal.length} criteria` : "None"], ["Exit criteria", exit.length ? `${exit.length} criteria` : "None"], ["Version", String(version)], ...(others.length ? [["Replaces", `Version ${others.map(versionOf).join(", ")}: nobody new enters it, people in it finish there`]] : [])].map(([k, val]) => (
                 <div key={k} className="flex gap-4 px-4 py-2.5"><dt className="w-40 shrink-0 text-muted">{k}</dt><dd className="font-semibold text-ink">{val}</dd></div>
               ))}
             </dl>
@@ -763,8 +799,8 @@ export default function JourneyPage() {
       {emailStep && (
         <Modal title="Edit email" onClose={() => setEmailOpen(null)} wide="xl">
           <EmailEditor subject={emailStep.subject} body={emailStep.body}
-            onSubject={(subject) => setSteps((cur) => { setDirty(true); return mapStep(cur, emailStep.id, (s) => ({ ...s, subject }) as Step); })}
-            onBody={(body) => setSteps((cur) => { setDirty(true); return mapStep(cur, emailStep.id, (s) => ({ ...s, body }) as Step); })}
+            onSubject={(subject) => !blocked() && setSteps((cur) => { setDirty(true); return mapStep(cur, emailStep.id, (s) => ({ ...s, subject }) as Step); })}
+            onBody={(body) => !blocked() && setSteps((cur) => { setDirty(true); return mapStep(cur, emailStep.id, (s) => ({ ...s, body }) as Step); })}
             aiContact={{ name: "{{first_name}}", company: "{{company}}" }} />
           <div className="mt-4 flex justify-end"><Button onClick={() => setEmailOpen(null)}>Done</Button></div>
         </Modal>

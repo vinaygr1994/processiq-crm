@@ -2,7 +2,7 @@ import type { AutoLog, Contact, Deal, Settings, Tables, Task, Visit, Workflow, W
 import { mergeVars, render } from "./merge";
 import { nextTimeOfDay, zonedToUtc } from "./tz";
 import type { Cond, Step } from "./types";
-import { branches, uid } from "./types";
+import { branches, familyOf, uid } from "./types";
 import { isDesign, parseDesign, plainOf, emailVars, type Design } from "../emailDesign";
 import { runScheduledSends } from "./sends";
 import { inSegment, segCtx } from "../segments";
@@ -159,13 +159,17 @@ async function pass(db: Db, port: Port, opts: { onlyRunId?: string }): Promise<S
   const byVisit = (id: string | null) => visits.find((v) => v.id === id);
 
   /* ---- 1. Enrol: look for things that just happened ---- */
-  const have = new Set(runs.map((r) => `${r.workflow_id}|${r.trigger_key}`));
+  // Versions of one journey share a family: someone who entered version 1 doesn't enter version 2 again.
+  const famById = new Map(workflows.map((w) => [w.id, familyOf(w)]));
+  const fam = (wid: string) => famById.get(wid) ?? wid;
+  const have = new Set(runs.map((r) => `${fam(r.workflow_id)}|${r.trigger_key}`));
   async function enrol(w: Workflow, key: string, deal: Deal | null, visit: Visit | null, contact: Contact | null = null) {
-    if (have.has(`${w.id}|${key}`)) return;
+    const f = familyOf(w);
+    if (have.has(`${f}|${key}`)) return;
     const cid = contact?.id ?? deal?.contact_id ?? visit?.contact_id ?? null;
     const mode = w.trigger.reentry ?? "event";
-    if (cid && mode !== "event" && runs.some((r) => r.workflow_id === w.id && r.contact_id === cid && (mode === "once" || r.status === "active"))) return;
-    have.add(`${w.id}|${key}`);
+    if (cid && mode !== "event" && runs.some((r) => fam(r.workflow_id) === f && r.contact_id === cid && (mode === "once" || r.status === "active"))) return;
+    have.add(`${f}|${key}`);
     if (deal && !visit) {
       // A newer run for the same job replaces an older one (e.g. a re-sent quote).
       for (const r of runs) if (r.workflow_id === w.id && r.deal_id === deal.id && r.status === "active" && !r.visit_id) { await db.update("workflow_runs", r.id, { status: "stopped", note: "Replaced by a newer run" }); r.status = "stopped"; }
@@ -182,6 +186,7 @@ async function pass(db: Db, port: Port, opts: { onlyRunId?: string }): Promise<S
     sum.enrolled++;
   }
   for (const w of active) {
+    if (w.trigger.closed) continue; // an older version: people in it finish, nobody new enters
     const since = Math.max(new Date(w.activated_at).getTime(), now - 30 * DAY);
     const t = w.trigger;
     if (t.type === "lead_created") for (const d of deals) if (new Date(d.created_at).getTime() >= since && (!t.source || d.source === t.source)) await enrol(w, `lead:${d.id}`, d, null);
@@ -213,7 +218,7 @@ async function pass(db: Db, port: Port, opts: { onlyRunId?: string }): Promise<S
       const r = deMembers([t.de], des, deRows, contacts);
       // Keyed by email address, so one person gets one run even if the address exists as two contacts.
       const deKey = (c: Contact) => `de:${t.de}:e:${c.email.toLowerCase()}`;
-      const inWf = new Set(runs.filter((x) => x.workflow_id === w.id).map((x) => byContact(x.contact_id)?.email?.toLowerCase()).filter(Boolean));
+      const inWf = new Set(runs.filter((x) => fam(x.workflow_id) === familyOf(w)).map((x) => byContact(x.contact_id)?.email?.toLowerCase()).filter(Boolean));
       for (const m of r.matched) if (!inWf.has(m.contact.email.toLowerCase())) await enrol(w, deKey(m.contact), null, null, m.contact);
       for (const f of r.fresh) {
         if (inWf.has(f.email)) continue;

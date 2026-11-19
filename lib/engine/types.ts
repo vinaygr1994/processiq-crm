@@ -15,9 +15,16 @@ export interface Trigger {
   reentry?: "event" | "once" | "after_exit";
   /** Journey goal: people who meet it leave and count as converted. (Exit criteria live on the workflow.) */
   goal?: Cond[];
-  /** Journey version shown in the builder; bumps each time a running journey is changed and saved. */
+  /** Journey version number (1, 2, 3…). Each version is its own workflow row. */
   version?: number;
+  /** Id of version 1. All versions of a journey share it; a person only ever runs in one version of a family. */
+  family?: string;
+  /** A newer version took over: nobody new enters this version, people already in it finish here. */
+  closed?: boolean;
 }
+
+/** The journey family a workflow belongs to (version 1's id). */
+export const familyOf = (w: { id: string; trigger: Trigger }) => w.trigger.family ?? w.id;
 
 export type ContactField = "company" | "source" | "owner" | "unsubscribed" | "sms_opt_out";
 export type CondField = "deal.stage" | "deal.source" | "deal.project" | "deal.value" | "deal.rep" | "deal.budget" | "contact.email" | "contact.phone" | "contact.tags" | "contact.company" | "contact.source" | "contact.unsubscribed" | "visit.status" | "visit.priority"

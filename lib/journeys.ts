@@ -1,6 +1,6 @@
 // Journey Builder helpers: the activity catalogue, tree editing, starter journeys and live stats.
 import type { Workflow, WorkflowRun, EmailLog } from "./types";
-import { branches, uid, type Cond, type Path, type Step, type Trigger } from "./engine/types";
+import { branches, familyOf, uid, type Cond, type Path, type Step, type Trigger } from "./engine/types";
 import { PRESETS, bid, stringifyDesign, type Design } from "./emailDesign";
 
 export const isJourney = (w: Pick<Workflow, "template_id">) => w.template_id?.startsWith("journey");
@@ -119,10 +119,34 @@ export function reIdAll(steps: Step[]): Step[] {
 /** A new draft journey with the same entry source, settings and canvas as w (like SFMC's Copy).
  *  Every activity gets a new id, so the copy's analytics and the people in it are its own. */
 export function copyOfJourney(w: Pick<Workflow, "name" | "description" | "trigger" | "steps" | "exit" | "template_id">, name: string) {
-  const { version: _v, ...trigger } = w.trigger as Trigger & { version?: number };
-  void _v;
+  const { version: _v, family: _f, closed: _c, ...trigger } = w.trigger;
+  void _v; void _f; void _c;
   return { name: name.trim() || `Copy of ${w.name}`, description: w.description ?? "", trigger: JSON.parse(JSON.stringify(trigger)) as Trigger, steps: reIdAll(JSON.parse(JSON.stringify(w.steps)) as Step[]), exit: JSON.parse(JSON.stringify(w.exit ?? [])) as Cond[], active: false, activated_at: new Date().toISOString(), template_id: w.template_id || "journey:copy" };
 }
+/* ---------- Versions ---------- */
+export const versionOf = (w: Pick<Workflow, "trigger">) => w.trigger.version ?? 1;
+/** Every version of w's journey, newest first. */
+export function versionsOf(all: Workflow[], w: Workflow): Workflow[] {
+  const f = familyOf(w);
+  return all.filter((x) => isJourney(x) && familyOf(x) === f).sort((a, b) => versionOf(b) - versionOf(a));
+}
+export type VersionStatus = "Running" | "Draft" | "Paused" | "Finishing" | "Finished";
+/** Running = taking entries; Finishing = replaced by a newer version, people still in it; Finished = replaced and empty. */
+export function versionStatus(w: Workflow, runs: WorkflowRun[]): VersionStatus {
+  const mine = runs.filter((r) => r.workflow_id === w.id);
+  if (w.trigger.closed) return mine.some((r) => r.status === "active") ? "Finishing" : "Finished";
+  if (w.active) return "Running";
+  return mine.length ? "Paused" : "Draft";
+}
+/** The next version of w: a draft with the same canvas and settings, in the same family. Activity ids stay the
+ *  same, so reports can line up an email across versions. */
+export function nextVersion(all: Workflow[], w: Workflow) {
+  const latest = Math.max(...versionsOf(all, w).map(versionOf));
+  const { closed: _c, ...t } = w.trigger; void _c;
+  return { name: w.name, description: w.description ?? "", trigger: { ...JSON.parse(JSON.stringify(t)), family: familyOf(w), version: latest + 1 } as Trigger,
+    steps: JSON.parse(JSON.stringify(w.steps)) as Step[], exit: JSON.parse(JSON.stringify(w.exit ?? [])) as Cond[], active: false, activated_at: new Date().toISOString(), template_id: w.template_id || "journey:version" };
+}
+
 /** "Copy of X", or "Copy of X (2)" when that name is taken. */
 export function copyName(name: string, taken: string[]) {
   const base = `Copy of ${name.replace(/^Copy of /, "")}`;

@@ -8,7 +8,8 @@ import { triggerText } from "@/components/WorkflowEditor";
 import { CopyJourneyModal } from "@/components/CopyJourney";
 import { useCrm } from "@/lib/store";
 import { useStages } from "@/lib/useStages";
-import { isJourney, journeyStarters, journeyStats, type Starter } from "@/lib/journeys";
+import { isJourney, journeyStarters, journeyStats, versionOf, versionStatus, type Starter } from "@/lib/journeys";
+import { familyOf } from "@/lib/engine/types";
 import type { Workflow } from "@/lib/types";
 
 export default function JourneysPage() {
@@ -18,17 +19,23 @@ export default function JourneysPage() {
   const [picker, setPicker] = useState(false);
   const [del, setDel] = useState<Workflow | null>(null);
   const [copy, setCopy] = useState<Workflow | null>(null);
-  const list = data.workflows.filter(isJourney).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const runs = (id: string) => data.workflow_runs.filter((r) => r.workflow_id === id);
+  // One row per journey: all its versions together, newest version first.
+  const families = new Map<string, Workflow[]>();
+  for (const w of data.workflows.filter(isJourney)) families.set(familyOf(w), [...(families.get(familyOf(w)) ?? []), w]);
+  const list = [...families.values()].map((vs) => vs.sort((a, b) => versionOf(b) - versionOf(a)))
+    .sort((a, b) => b[0].created_at.localeCompare(a[0].created_at));
+  const runs = (ids: string[]) => data.workflow_runs.filter((r) => ids.includes(r.workflow_id));
 
   async function create(s: Starter) {
     const row = await add("workflows", { name: s.name, description: s.description, trigger: s.trigger, steps: s.steps, exit: s.exit, active: false, activated_at: new Date().toISOString(), template_id: `journey:${s.id}` });
     if (row) router.push(`/journeys/${row.id}`);
   }
   async function destroy(w: Workflow) {
-    const ids = runs(w.id).map((r) => r.id);
+    const vs = families.get(familyOf(w)) ?? [w];
+    const ids = runs(vs.map((x) => x.id)).map((r) => r.id);
     if (ids.length) await removeMany("workflow_runs", ids);
-    await remove("workflows", w.id); setDel(null); toast("Journey deleted");
+    for (const x of vs) await remove("workflows", x.id);
+    setDel(null); toast("Journey deleted");
   }
 
   return (
@@ -44,15 +51,19 @@ export default function JourneysPage() {
             <span>Journey</span><span>Status</span><span className="text-right">Entered</span><span className="text-right">In journey</span><span className="text-right">Completed</span><span className="text-right">Goal met</span><span />
           </div>
           <ul className="divide-y divide-line">
-            {list.map((w) => {
-              const s = journeyStats(runs(w.id));
+            {list.map((vs) => {
+              const w = vs[0];
+              const live = vs.find((x) => versionStatus(x, data.workflow_runs) === "Running");
+              const st = versionStatus(live ?? w, data.workflow_runs);
+              const s = journeyStats(runs(vs.map((x) => x.id)));
+              const ver = live && live.id !== w.id ? `Version ${versionOf(live)} running · version ${versionOf(w)} ${versionStatus(w, data.workflow_runs).toLowerCase()}` : vs.length > 1 || versionOf(w) > 1 ? `Version ${versionOf(w)}` : "";
               return (
                 <li key={w.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_90px_72px]">
                   <div className="min-w-0">
                     <Link href={`/journeys/${w.id}`} className="font-semibold text-ink hover:text-teal-d hover:underline">{w.name}</Link>
-                    <div className="truncate text-sm text-muted">{triggerText(w.trigger, stageName)}</div>
+                    <div className="truncate text-sm text-muted">{triggerText(w.trigger, stageName)}{ver && <span className="text-body"> · {ver}</span>}</div>
                   </div>
-                  <div><Badge tone={w.active ? "teal" : "gray"}>{w.active ? "Running" : "Draft"}</Badge></div>
+                  <div><Badge tone={st === "Running" ? "teal" : st === "Paused" || st === "Finishing" ? "sun" : "gray"}>{st}</Badge></div>
                   <div className="hidden text-right font-semibold text-ink lg:block">{s.entered}</div>
                   <div className="hidden text-right lg:block">{s.active}</div>
                   <div className="hidden text-right lg:block">{s.done}</div>
@@ -82,7 +93,7 @@ export default function JourneysPage() {
         </Modal>
       )}
       {copy && <CopyJourneyModal source={copy} onClose={() => setCopy(null)} />}
-      {del && <ConfirmModal title={`Delete “${del.name}”?`} text="Everyone currently in this journey leaves it. This can't be undone." onClose={() => setDel(null)} onConfirm={() => destroy(del)} />}
+      {del && <ConfirmModal title={`Delete “${del.name}”?`} text={(families.get(familyOf(del))?.length ?? 1) > 1 ? `This deletes all ${families.get(familyOf(del))!.length} versions. Everyone currently in the journey leaves it. This can't be undone.` : "Everyone currently in this journey leaves it. This can't be undone."} onClose={() => setDel(null)} onConfirm={() => destroy(del)} />}
     </div>
   );
 }
