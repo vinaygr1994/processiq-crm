@@ -17,7 +17,8 @@ const fail = (msg) => {
   if (strict) {
     console.error(`\n[migrate] DEPLOY STOPPED: ${msg}`);
     console.error("[migrate] Your previous version stays live, so clients are not affected.");
-    console.error("[migrate] Fix: Vercel → Settings → Environment Variables → SUPABASE_DB_URL = Supabase → Connect → Session pooler string with your real database password. Then Redeploy.\n");
+    if (/password|connect|ENOTFOUND|ECONNREFUSED|SUPABASE_DB_URL|authentication|tenant/i.test(msg)) console.error("[migrate] Fix: Vercel → Settings → Environment Variables → SUPABASE_DB_URL = Supabase → Connect → Session pooler string with your real database password. Then Redeploy.\n");
+    else console.error("[migrate] This is a problem in supabase/schema.sql, not your settings. Fix the SQL and push again.\n");
     process.exit(1);
   }
   console.warn(`[migrate] WARNING: ${msg} (not production, continuing)`);
@@ -52,8 +53,8 @@ try {
   // 3. Prove every column the app uses really exists ("create table if not exists" never adds columns,
   //    which is how open/click tracking once silently broke).
   const want = [];
-  for (const m of schema.matchAll(/create table if not exists public\.(\w+) \(([\s\S]*?)\n\);/g)) {
-    for (const line of m[2].split("\n")) {
+  for (const m of schema.matchAll(/create table if not exists public\.(\w+) \(((?:(?!create table)[\s\S])*?)\)\s*;/g)) {
+    for (const line of m[2].split(/\n|,(?![^(]*\))/)) {
       const c = /^\s*([a-z_]+)\s+(uuid|text|timestamptz|boolean|int|integer|bigint|jsonb|numeric|date)\b/.exec(line)?.[1];
       if (c && !["primary", "unique", "constraint", "check", "foreign"].includes(c)) want.push([m[1], c]);
     }
