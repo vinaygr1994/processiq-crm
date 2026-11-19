@@ -33,6 +33,7 @@ export const triggerText = (t: Trigger, name: (id: string) => string = (id) => S
   if (t.type === "lead_created" && t.source) return `${base} from ${t.source}`;
   if (t.type === "tag_added") return `${base}: ${t.tag || "(choose a tag)"}`;
   if (t.type === "audience") return t.tag ? `Audience: tagged ${t.tag}` : "Audience: everyone with an email";
+  if (t.type === "data_extension") return "Data extension entry";
   return base;
 };
 

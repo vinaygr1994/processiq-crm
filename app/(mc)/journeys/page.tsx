@@ -61,7 +61,7 @@ export default function JourneysPage() {
                 <li key={w.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_110px_90px_90px_90px_90px_72px]">
                   <div className="min-w-0">
                     <Link href={`/journeys/${w.id}`} className="font-semibold text-ink hover:text-teal-d hover:underline">{w.name}</Link>
-                    <div className="truncate text-sm text-muted">{triggerText(w.trigger, stageName)}{ver && <span className="text-body"> · {ver}</span>}</div>
+                    <div className="truncate text-sm text-muted">{w.trigger.type === "data_extension" ? `Data extension: ${data.data_extensions.find((d) => d.id === w.trigger.de)?.name ?? "not chosen"}` : triggerText(w.trigger, stageName)}{ver && <span className="text-body"> · {ver}</span>}</div>
                   </div>
                   <div><Badge tone={st === "Running" ? "teal" : st === "Paused" || st === "Finishing" ? "sun" : "gray"}>{st}</Badge></div>
                   <div className="hidden text-right font-semibold text-ink lg:block">{s.entered}</div>
