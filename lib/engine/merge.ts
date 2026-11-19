@@ -18,6 +18,9 @@ export function mergeVars(deal: Deal | undefined, contact: Contact | undefined, 
   return {
     ...custom,
     first: firstName(contact?.name ?? "there"),
+    // Same names the email editor offers ({{first_name}}, {{company}}), so subjects, SMS and plain emails fill them too.
+    first_name: firstName(contact?.name ?? "there"),
+    company: contact?.company || "your company",
     name: contact?.name ?? "there",
     project: (deal?.project || "project").toLowerCase(),
     rep: deal?.rep || s?.sender_name || "our team",

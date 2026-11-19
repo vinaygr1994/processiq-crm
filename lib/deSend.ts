@@ -12,7 +12,8 @@ export function rowVars(de: DataExtension, row: DeRow): Vars {
   const v: Vars = {};
   for (const f of de.fields) {
     const k = f.name.toLowerCase().replace(/[^a-z0-9_]/g, "_");
-    if (k && row.data[f.name] != null) v[k] = String(row.data[f.name]).slice(0, 300);
+    // Blank cells are skipped, so {{first_name}} falls back to the contact's name instead of going empty.
+    if (k && row.data[f.name] != null && String(row.data[f.name]).trim() !== "") v[k] = String(row.data[f.name]).slice(0, 300);
   }
   return v;
 }

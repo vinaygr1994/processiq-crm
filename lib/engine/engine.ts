@@ -296,9 +296,9 @@ async function pass(db: Db, port: Port, opts: { onlyRunId?: string }): Promise<S
       }
       try {
         if (step.type === "email") {
-          const subject = render(step.subject, vars);
           const design = isDesign(step.body) ? parseDesign(step.body) : null;
           const allVars = { ...emailVars(contact ?? null, settings), ...vars };
+          const subject = render(step.subject, allVars);
           let body = design ? plainOf(step.body, allVars) : render(step.body, vars);
           const sig = settings?.signature?.trim();
           if (sig && !design) body += `\n\n${sig}`;
